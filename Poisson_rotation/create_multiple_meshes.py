@@ -12,7 +12,7 @@ H = 1.75
 c_x,c_y  = L/2+0.1, H/2
 r_x, r_y = 0.3, 0.1
 
-def background_mesh(res=0.1):
+def background_mesh(res=0.025):
     """
     Create rectangular background mesh for the Poisson problem
     """
@@ -25,18 +25,18 @@ def background_mesh(res=0.1):
     (points, cells, point_data,
      cell_data, field_data) = generate_mesh(geometry, prune_z_0=True)
     
-    meshio.write("meshes/multimesh_back.xdmf", meshio.Mesh(
+    meshio.write("meshes/multimesh_0.xdmf", meshio.Mesh(
         points=points, cells={"triangle": cells["triangle"]}))
     
-    meshio.write("meshes/mf_back.xdmf", meshio.Mesh(
+    meshio.write("meshes/mf_0.xdmf", meshio.Mesh(
         points=points, cells={"line": cells["line"]},
         cell_data={"line": {"name_to_read":
                             cell_data["line"]["gmsh:physical"]}}))
 
-def front_mesh(res=0.1):
+def front_mesh(res=0.025):
     geometry = Geometry()
     c = geometry.add_point((c_x,c_y,0))
-    mesh_r = 5*res # Width of mesh
+    mesh_r = 3*res # Width of mesh
     
     # Elliptic obstacle
     p1 = geometry.add_point((c_x-r_x, c_y,0))
@@ -64,22 +64,30 @@ def front_mesh(res=0.1):
     geometry.add_physical_line(loop.lines, label=outer_marker)
     geometry.add_physical_line(obstacle_loop.lines, label=inner_marker)
 
+    # Create refined mesh around geometry
+    field = geometry.add_boundary_layer(edges_list=obstacle_loop.lines, hfar=res, hwall_n=res/2, thickness=2*res)
+    geometry.add_background_field([field])
+
     # Generate mesh
     (points, cells, point_data,
      cell_data, field_data) = generate_mesh(geometry, prune_z_0=True,
                                             geo_filename="meshes/test.geo")
 
     # Save mesh and mesh-function to file
-    meshio.write("meshes/multimesh_front.xdmf", meshio.Mesh(
+    meshio.write("meshes/multimesh_1.xdmf", meshio.Mesh(
         points=points, cells={"triangle": cells["triangle"]}))
     
-    meshio.write("meshes/mf_front.xdmf", meshio.Mesh(
+    meshio.write("meshes/mf_1.xdmf", meshio.Mesh(
         points=points, cells={"line": cells["line"]},
         cell_data={"line": {"name_to_read":
                             cell_data["line"]["gmsh:physical"]}}))
 
         
 if __name__=="__main__":
-    res = 0.1
+    import sys
+    try:
+        res = float(sys.argv[1])
+    except IndexError:
+        res = 0.025
     background_mesh(res)
     front_mesh(res)
