@@ -3,8 +3,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import moola
 import os
+set_log_level(LogLevel.ERROR)
 os.system("mkdir -p results")
 os.system("mkdir -p figures")
+
+# Load meshes and mesh-functions used in the MultiMesh from file
 multimesh = MultiMesh()
 mfs = []
 meshes = []
@@ -41,15 +44,22 @@ def a_O(T,v, beta=4.0):
     return beta*dot(jump(grad(T)), jump(grad(v)))*dO
 
 def JT(T):
+    """
+    Returns functional as ufl-expression for given T
+    """
     return 0.5*T*T*dX
 
-def eval_dJ(T):
-    return assemble_multimesh(JT(T))
-
 def eval_J(T):
+    """
+    Returns functional value with given T
+    """
     return 0.5*assemble_multimesh(T**2*dX)
 
 def eval_dJ(T, lmb):
+    """
+    Computes the shape gradient for the optimization problem given state 
+    and adjoint solution
+    """
     multimesh = T.function_space().multimesh()
     mfs = []
     for i in range(2):
@@ -63,17 +73,19 @@ def eval_dJ(T, lmb):
     T1 = T.part(1, deepcopy=True)
     lmb1 = lmb.part(1, deepcopy=True)
     dS = Measure("ds", domain=multimesh.part(1), subdomain_data=mf_1)
-    # plot(interpolate(s, VectorFunctionSpace(multimesh.part(1), "CG", 1)))
 
     normal = FacetNormal(multimesh.part(1))
-    d = (0.5*T1*T1#+inner(grad(lmb1), grad(T1))-fexp*lmb1
-         -dot(grad(lmb1),normal)*dot(grad(T1),normal))
-    # d = (0.5*T1*T1+inner(grad(lmb1), grad(T1))-fexp*lmb1)
+    d = (0.5*T1*T1-dot(grad(lmb1),normal)*dot(grad(T1),normal))
+
     # Apply deformation s
     dJs = assemble(inner(normal,s)*d*dS(2))
     return dJs
 
 def solve_poisson(multimesh):
+    """
+    Solves the Poisson problem with Dirichlet Boundary conditions on a given
+    multimesh
+    """
     # Create function space for the temperature
     V = MultiMeshFunctionSpace(multimesh, "CG", 1)
     mfs = []
@@ -123,6 +135,9 @@ def solve_poisson(multimesh):
     return T
 
 def solve_adjoint(T):
+    """
+    Computes the adjoint solution of the Poisson problem given solution T
+    """
     multimesh = T.function_space().multimesh()
     mfs = []
     for i in range(2):
@@ -160,12 +175,15 @@ def solve_adjoint(T):
     return lmb
 
 
-def all_angles():
+def all_angles(fac=1):
+    """
+    Computes all rotations (360 degree rotation with input fac as
+    degree interval)
+    """
     T0 = solve_poisson(multimesh)
     lmb0 = solve_adjoint(T0)
     it = 0
     J_old = eval_J(T0)
-    fac= 1
     i = 0
     degree= 0
     Js = []
@@ -180,9 +198,6 @@ def all_angles():
             J_old = J
             print(J, 1./fac*i)
         meshes[1].rotate(1./fac, 2, Point(1.25,0.875))
-        # plot(multimesh.part(0))
-        # plot(multimesh.part(1),color="r")
-        # plt.show()
         multimesh.build()
         Js.append(J)
         degrees.append(1./fac*i)
@@ -192,6 +207,14 @@ def all_angles():
     print(J_old, degree)
 
 def deform_mesh(s, forget=False):
+    """
+    Rotates the top mesh with angle 's' around (1.25,0.875).
+    if forget:
+        creates a tmp meshes and computes the functional value
+        with the given rotation
+    else:
+        rotates the multimesh with angle `s`
+    """
     if forget:
         mesh_1_new = Mesh(multimesh.part(1))
         multimesh_1 = MultiMesh()
@@ -299,7 +322,7 @@ if __name__ == '__main__':
     cy = assemble(x[1]*dx(domain=multimesh.part(1)))\
          /assemble(1*dx(domain=multimesh.part(1)))
     circ=plt.Circle((cx,cy),0.3,color= mpl.colors.get_named_colors_mapping()['darkgrey'], linewidth=0,alpha=1,zorder=998)
-    ax.add_patch(circ)
+    # ax.add_patch(circ)
     #plt.annotate(r'a)', xy=(1.25, -0.2), color="k",size=20)
     plt.axis([0,2.5, -0.2, 1.75])
     plt.axis("off")
