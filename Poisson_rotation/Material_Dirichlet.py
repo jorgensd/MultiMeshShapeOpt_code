@@ -6,9 +6,9 @@ from pdb import set_trace
 beta = 4.0
 
 # Creating dx/dtheta around center (1.25,0.875)
-sx = "-x[1]+0.875"
-sy = "x[0]-1.25"
-s = Expression((sx,sy),degree=3)
+# sx = "-x[1]+0.875"
+# sy = "x[0]-1.25"
+# s = Expression((sx,sy),degree=3)
 
 def f(X):
     return X[0]*sin(X[0])*cos(X[1])
@@ -59,6 +59,7 @@ def solve_poisson(multimesh):
     L = l_s(f_,v)
 
     # Deactivate hole in background mesh
+    multimesh.build()
     multimesh.auto_cover(0, Point(1.25, 0.875))
 
     
@@ -141,7 +142,7 @@ def compute_gradient(T, lmb, s):
               +div(s)*dot(grad(T), grad(lmb))*dX\
               -dot(grad(T),dot(grad(lmb), grad(s)))*dX\
               +dot(s, df)*lmb*dX + div(s)*f_*lmb*dX
-    dJOmega += div(s)*0.5*T*T*dx
+    dJOmega += div(s)*0.5*T*T*dX
     dJdO = -dot(jump(dot(grad(T), grad(s))), jump(grad(lmb)))*dO\
            +div(s)*dot(jump(grad(T)), jump(grad(lmb)))*dO\
            -dot(jump(grad(T)), jump(dot(grad(lmb),grad(s))))*dO
@@ -155,16 +156,26 @@ def compute_gradient(T, lmb, s):
     
     return dJOmega + dJdO + dJdI 
 
-def deformation_vector(multimesh, step=1):
+def deformation_vector(multimesh):
     from femorph import VolumeNormal
     n2 = VolumeNormal(multimesh.part(1))
     S_sm = VectorFunctionSpace(multimesh.part(1), "CG", 1)
-    bc = DirichletBC(S_sm, step*n2, mfs[1], 2)
+    bc = DirichletBC(S_sm, n2, mfs[1], 2)
     us,vs = TrialFunction(S_sm), TestFunction(S_sm)
     a_ = inner(grad(us),grad(vs))*dx + inner(us,vs)*dx
     deformation = Function(S_sm)
     solve(lhs(a_) == rhs(a_), deformation, bcs=bc)
     return deformation
+
+def convergence_rates(E_values, eps_values):
+    from numpy import log
+    r = []
+    for i in range(1, len(eps_values)):
+        r.append(log(E_values[i]/E_values[i-1])/log(eps_values[i]/
+                                                    eps_values[i-1]))
+
+    print("Computed convergence rates: {}".format(r))
+    return r
 
 if __name__ == "__main__":
     # Load meshes and mesh-functions used in the MultiMesh from file
@@ -188,22 +199,37 @@ if __name__ == "__main__":
     Js = [J0]
     lmb = solve_adjoint(T)
     S = MultiMeshVectorFunctionSpace(multimesh, "CG", 1)
-    s_sm = deformation_vector(multimesh, 1)
+    s_sm = deformation_vector(multimesh)
     s_mm = MultiMeshFunction(S)
     s_mm.assign_part(1,s_sm)
     s = TestFunction(S)
     dJds = assemble_multimesh(compute_gradient(T, lmb, s))
     dJds = dJds.inner(s_mm.vector())
 
-    epsilon = [0.01*0.5**i for i in range(5)]
-    for eps in epsilon:
-        s_eps = deformation_vector(multimesh, eps)
+    epsilons = [0.05*0.5**i for i in range(5)]
+    errors = {"0": [],"1": []}
+    for eps in epsilons:
+        s_eps = deformation_vector(multimesh)
+        s_eps.vector()[:] *= eps
+        plot(multimesh.part(1), color="r")
         ALE.move(multimesh.part(1), s_eps)
+        multimesh.build()
+        multimesh.auto_cover(0,Point(1.25, 0.875))
+        plot(multimesh.part(1))
+        plt.show()
         T_eps = solve_poisson(multimesh)
         J_eps = assemble_multimesh(JT(T_eps))
         Js.append(J_eps)
+        errors["0"].append(abs(J_eps-Js[0]))
+        errors["1"].append(abs(J_eps-Js[0]-eps*dJds))
         s_eps.vector()[:] *= -1
         ALE.move(multimesh.part(1), s_eps)
+        multimesh.build()
+        multimesh.auto_cover(0,Point(1.25, 0.875))
+    print(errors["0"])
+    print(errors["1"])
+    rates = convergence_rates(errors["0"], epsilons)
+    rates = convergence_rates(errors["1"], epsilons)
 
     # Compute gradient and save to file
     # dJ = compute_gradient(T, lmb, s)
