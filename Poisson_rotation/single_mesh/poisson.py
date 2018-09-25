@@ -175,10 +175,10 @@ if __name__ == "__main__":
         ALE.move(mesh, s_eps)
     print(errors["0"])
     print(dJds)
-    exit(1)
     print(errors["1"])
     rates0 = convergence_rates(errors["0"], epsilons)
     rates1 = convergence_rates(errors["1"], epsilons)
+    exit(1)
     print(rates0)
     print(rates1)
     # Compute gradient and save to file

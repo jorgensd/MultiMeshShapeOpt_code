@@ -52,11 +52,6 @@ def solve_poisson(multimesh):
     X = SpatialCoordinate(multimesh)
     f_ = f(X)
     L = l_s(f_,v)
-
-    # Deactivate hole in background mesh
-    # multimesh.build()
-    # multimesh.auto_cover(0, Point(1.25, 0.875))
-
     
     # Assemble linear system
     A = assemble_multimesh(a)
@@ -67,7 +62,7 @@ def solve_poisson(multimesh):
 
     # Solving linear system
     T = MultiMeshFunction(V, name="State")
-    # V.lock_inactive_dofs(A, b)
+    V.lock_inactive_dofs(A, b)
     solve(A, T.vector(), b,'lu')
     return T
 
@@ -148,17 +143,18 @@ def compute_gradient(T, lmb, s):
            +dot(n("+"), avg(dot(grad(T), grad(s)))*jump(lmb))*dI\
            +dot(n("+"), avg(dot(grad(lmb), grad(s)))*jump(T))*dI
     
-    return dJOmega# + dJdO + dJdI 
+    return dJOmega + dJdO + dJdI 
 
 def deformation_vector(multimesh):
     from femorph import VolumeNormal
     n2 = VolumeNormal(multimesh.part(0))
     S_sm = VectorFunctionSpace(multimesh.part(0), "CG", 1)
     bc = DirichletBC(S_sm, n2, mfs[0], 2)
+    bc2 = DirichletBC(S_sm, Constant((0,0)), mfs[0], 1)
     us,vs = TrialFunction(S_sm), TestFunction(S_sm)
     a_ = inner(grad(us),grad(vs))*dx + inner(us,vs)*dx
     deformation = Function(S_sm)
-    solve(lhs(a_) == rhs(a_), deformation, bcs=bc)
+    solve(lhs(a_) == rhs(a_), deformation, bcs=[bc,bc2])
     return deformation
 
 def convergence_rates(E_values, eps_values):
@@ -217,10 +213,10 @@ if __name__ == "__main__":
         multimesh.build()
     print(errors["0"])
     print(dJds)
-    exit(1)
     print(errors["1"])
     rates0 = convergence_rates(errors["0"], epsilons)
     rates1 = convergence_rates(errors["1"], epsilons)
+    exit(1)
     print(rates0)
     print(rates1)
     # Compute gradient and save to file
