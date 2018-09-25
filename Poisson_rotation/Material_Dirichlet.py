@@ -141,7 +141,7 @@ def compute_gradient(T, lmb, s):
     dJOmega = -dot(dot(grad(T), grad(s)), grad(lmb))*dX\
               +div(s)*dot(grad(T), grad(lmb))*dX\
               -dot(grad(T),dot(grad(lmb), grad(s)))*dX\
-              +dot(s, df)*lmb*dX + div(s)*f_*lmb*dX
+              -dot(s, df)*lmb*dX - div(s)*f_*lmb*dX
     dJOmega += div(s)*0.5*T*T*dX
     dJdO = -dot(jump(dot(grad(T), grad(s))), jump(grad(lmb)))*dO\
            +div(s)*dot(jump(grad(T)), jump(grad(lmb)))*dO\
@@ -154,18 +154,44 @@ def compute_gradient(T, lmb, s):
            +dot(n("+"), avg(dot(grad(T), grad(s)))*jump(lmb))*dI\
            +dot(n("+"), avg(dot(grad(lmb), grad(s)))*jump(T))*dI
     
-    return dJOmega + dJdO + dJdI 
+    return dJOmega# + dJdO + dJdI 
 
 def deformation_vector(multimesh):
     from femorph import VolumeNormal
-    n2 = VolumeNormal(multimesh.part(1))
-    S_sm = VectorFunctionSpace(multimesh.part(1), "CG", 1)
-    bc = DirichletBC(S_sm, n2, mfs[1], 2)
-    us,vs = TrialFunction(S_sm), TestFunction(S_sm)
-    a_ = inner(grad(us),grad(vs))*dx + inner(us,vs)*dx
-    deformation = Function(S_sm)
-    solve(lhs(a_) == rhs(a_), deformation, bcs=bc)
-    return deformation
+    n0 = VolumeNormal(multimesh.part(0))
+    n1 = VolumeNormal(multimesh.part(1))
+    S = MultiMeshVectorFunctionSpace(multimesh, "CG", 1)
+    mfs = []
+    for i in range(2):
+        mvc = MeshValueCollection("size_t", multimesh.part(i), 1)
+        with XDMFFile("meshes/mf_%d.xdmf" %i) as infile:
+            infile.read(mvc, "name_to_read")
+        mfs.append(cpp.mesh.MeshFunctionSizet(multimesh.part(i), mvc))
+    mf_0 = mfs[0]
+    mf_1 = mfs[1]
+
+    bcs = [MultiMeshDirichletBC(S, n1, mf_1, 2, 1),
+           MultiMeshDirichletBC(S, Constant((0,0)), mf_0, 1, 0)] #n1
+    n = FacetNormal(multimesh)
+    h = 2.0*Circumradius(multimesh)
+    h = (h('+') + h('-')) / 2
+    us,vs = TrialFunction(S), TestFunction(S)
+    a_s = inner(grad(us),grad(vs))*dX
+    a_IP= (-inner(dot(avg(grad(us)), n("+")), jump(vs))
+           -inner(dot(avg(grad(vs)), n("+")), jump(us))
+           +beta/h*inner(jump(us), jump(vs)))*dI
+    a_O= inner(jump(grad(us)),jump(grad(vs)))*dO
+    a = a_s + a_IP + a_O
+    L = inner(Constant((0,0)), vs)*dX
+    A = assemble_multimesh(a)
+    b = assemble_multimesh(L)
+    [bc.apply(A,b) for bc in bcs]
+    S.lock_inactive_dofs(A, b)
+    perturbation = MultiMeshFunction(S)
+    solve(A, perturbation.vector(), b, 'lu')
+    plot(perturbation.part(0))
+    plot(perturbation.part(1))
+    return perturbation
 
 def convergence_rates(E_values, eps_values):
     from numpy import log
@@ -199,45 +225,44 @@ if __name__ == "__main__":
     Js = [J0]
     lmb = solve_adjoint(T)
     S = MultiMeshVectorFunctionSpace(multimesh, "CG", 1)
-    s_sm = deformation_vector(multimesh)
-    s_mm = MultiMeshFunction(S)
-    s_mm.assign_part(1,s_sm)
+    s_mm = deformation_vector(multimesh)
     s = TestFunction(S)
     dJds = assemble_multimesh(compute_gradient(T, lmb, s))
+    # File("mm_grad0.pvd") << dJds.part(0)
+    # File("mm_grad1.pvd") << dJds.part(1)
     dJds = dJds.inner(s_mm.vector())
-
-    epsilons = [0.05*0.5**i for i in range(5)]
+    epsilons = [0.01*0.5**i for i in range(5)]
     errors = {"0": [],"1": []}
     for eps in epsilons:
         s_eps = deformation_vector(multimesh)
         s_eps.vector()[:] *= eps
-        plot(multimesh.part(1), color="r")
-        ALE.move(multimesh.part(1), s_eps)
+        for i in range(2):
+            ALE.move(multimesh.part(i), s_eps.part(i))
         multimesh.build()
         multimesh.auto_cover(0,Point(1.25, 0.875))
-        plot(multimesh.part(1))
-        plt.show()
         T_eps = solve_poisson(multimesh)
         J_eps = assemble_multimesh(JT(T_eps))
         Js.append(J_eps)
         errors["0"].append(abs(J_eps-Js[0]))
         errors["1"].append(abs(J_eps-Js[0]-eps*dJds))
         s_eps.vector()[:] *= -1
-        ALE.move(multimesh.part(1), s_eps)
+        for i in range(2):
+            ALE.move(multimesh.part(i), s_eps.part(i))
         multimesh.build()
         multimesh.auto_cover(0,Point(1.25, 0.875))
     print(errors["0"])
     print(errors["1"])
-    rates = convergence_rates(errors["0"], epsilons)
-    rates = convergence_rates(errors["1"], epsilons)
-
+    rates0 = convergence_rates(errors["0"], epsilons)
+    rates1 = convergence_rates(errors["1"], epsilons)
+    print(rates0)
+    print(rates1)
     # Compute gradient and save to file
-    # dJ = compute_gradient(T, lmb, s)
-    # u = MultiMeshFunction(S)
-    # u.vector()[:] = assemble_multimesh(dJ)
-    # for i in range(2):
-    #     out = XDMFFile("results/dJdO%d.xdmf" %i)
-    #     out.write(u.part(i))
-    #     out.close()
+    dJ = compute_gradient(T, lmb, s)
+    u = MultiMeshFunction(S)
+    u.vector()[:] = assemble_multimesh(dJ)
+    for i in range(2):
+        out = XDMFFile("results/dJdO%d.xdmf" %i)
+        out.write(u.part(i))
+        out.close()
 
     
