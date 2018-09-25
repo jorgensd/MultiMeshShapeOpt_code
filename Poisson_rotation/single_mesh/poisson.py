@@ -10,7 +10,7 @@ def f(X):
 def a_s(T, v):
     return dot(grad(T), grad(v))*dx
 def l_s(f,v):
-    return f*v*dx
+    return f*v*dx(domain=mesh)
 
 def solve_poisson(mesh):
     """
@@ -156,8 +156,10 @@ if __name__ == "__main__":
 
     s = TestFunction(S)
     dJds = assemble(compute_gradient(T, lmb, s))
+    grad_out = Function(S)
+    grad_out.vector()[:] = dJds
+    File("sm_grad.pvd") << grad_out
     dJds = dJds.inner(s_mm.vector())
-
     epsilons = [0.01*0.5**i for i in range(5)]
     errors = {"0": [],"1": []}
     for eps in epsilons:
@@ -172,6 +174,8 @@ if __name__ == "__main__":
         s_eps.vector()[:] *= -1
         ALE.move(mesh, s_eps)
     print(errors["0"])
+    print(dJds)
+    exit(1)
     print(errors["1"])
     rates0 = convergence_rates(errors["0"], epsilons)
     rates1 = convergence_rates(errors["1"], epsilons)
