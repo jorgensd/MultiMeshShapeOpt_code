@@ -2,8 +2,10 @@ from dolfin import *
 import matplotlib.pyplot as plt
 from IPython import embed
 from pdb import set_trace
-# MultiMesh stability paraameter
+# MultiMesh stability parameters
+alpha = 4.0
 beta = 4.0
+set_log_level(LogLevel.ERROR)
 
 # Creating dx/dtheta around center (1.25,0.875)
 # sx = "-x[1]+0.875"
@@ -47,10 +49,6 @@ def solve_poisson(multimesh):
     n = FacetNormal(multimesh)
     h = 2.0*Circumradius(multimesh)
     h = (h('+') + h('-')) / 2
-
-    # Set parameters
-    alpha = 4.0
-    
 
     # Define bilinear form and linear form 
     a = a_s(T,v)+a_IP(T,v,n,h)+a_O(T,v)
@@ -143,12 +141,12 @@ def compute_gradient(T, lmb, s):
               -dot(grad(T),dot(grad(lmb), grad(s)))*dX\
               -dot(s, df)*lmb*dX - div(s)*f_*lmb*dX
     dJOmega += div(s)*0.5*T*T*dX
-    dJdO = -dot(jump(dot(grad(T), grad(s))), jump(grad(lmb)))*dO\
-           +div(s)*dot(jump(grad(T)), jump(grad(lmb)))*dO\
-           -dot(jump(grad(T)), jump(dot(grad(lmb),grad(s))))*dO
+    dJdO = -beta*(dot(jump(dot(grad(T), grad(s))), jump(grad(lmb)))*dO
+           +div(s("+"))*dot(jump(grad(T)), jump(grad(lmb)))*dO
+           -dot(jump(grad(T)), jump(dot(grad(lmb),grad(s))))*dO)
     dJdI = -tan_div(s("+"), n("+"))*dot(n("+"), avg(grad(T)))*jump(lmb)*dI\
            -tan_div(s("+"), n("+"))*dot(n("+"), avg(grad(lmb))*jump(T))*dI\
-           -tan_div(s("+"),n("+"))*beta/h*jump(T)*jump(lmb)*dI\
+           -tan_div(s("+"),n("+"))*alpha/h*jump(T)*jump(lmb)*dI\
            -dot(dn_mat(s("+"), n("+")), avg(grad(lmb))*jump(T))*dI\
            -dot(dn_mat(s("+"), n("+")), avg(grad(T))*jump(lmb))*dI\
            +dot(n("+"), avg(dot(grad(T), grad(s)))*jump(lmb))*dI\
@@ -179,7 +177,7 @@ def deformation_vector(multimesh):
     a_s = inner(grad(us),grad(vs))*dX
     a_IP= (-inner(dot(avg(grad(us)), n("+")), jump(vs))
            -inner(dot(avg(grad(vs)), n("+")), jump(us))
-           +beta/h*inner(jump(us), jump(vs)))*dI
+           +alpha/h*inner(jump(us), jump(vs)))*dI
     a_O= inner(jump(grad(us)),jump(grad(vs)))*dO
     a = a_s + a_IP + a_O
     L = inner(Constant((0,0)), vs)*dX

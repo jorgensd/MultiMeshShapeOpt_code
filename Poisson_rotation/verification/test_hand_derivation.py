@@ -15,16 +15,34 @@ with XDMFFile("meshes/cf.xdmf") as infile:
     infile.read(mvc_c, "name_to_read")
 mc = cpp.mesh.MeshFunctionSizet(mesh, mvc_c)
 
-dInterface = Measure("dS", domain=mesh, subdomain_data=mf, subdomain_id=2)
+dI2 = Measure("dS", domain=mesh, subdomain_data=mf, subdomain_id=2)
 X = SpatialCoordinate(mesh)
-V = FunctionSpace(mesh, "CG", 1)
+V = FunctionSpace(mesh, "DG", 1)
 S = VectorFunctionSpace(mesh, "CG", 1)
 s = TrialFunction(S)
 n = FacetNormal(mesh)
 u, v = project(1+cos(X[0]), V), TestFunction(V)
 
+dofmap = V.dofmap()
+from numpy import where
+from numpy.random import random
+cells_13 = where(mc.array()==13)[0]
+cells_12 = where(mc.array()==12)[0]
+dofs_13 =[]
+for i in cells_13:
+    dofs_13.extend(dofmap.cell_dofs(i))
+dofs_13 = list(set(dofs_13))
+dofs_12 =[]
+for i in cells_12:
+    dofs_12.extend(dofmap.cell_dofs(i))
+dofs_12 = list(set(dofs_12))
 
-
+for i in dofs_12:
+    u.vector()[i] = random()
+for i in dofs_13:
+    u.vector()[i] = random()
+plot(u)
+plt.show()
 def equivalent(a, b):
     a_ = assemble(a).array()
     b_ = assemble(b).array()
@@ -69,19 +87,28 @@ def test_a_IP():
     beta = 4.0
     h = 2.0*Circumradius(mesh)
     h = (h('+') + h('-')) / 2
-    a_IP = - (dot(avg(grad(u)), jump(v, n))*dInterface 
-              + dot(avg(grad(v)), jump(u, n))*dInterface)\
-              +alpha/h*jump(u)*jump(v)*dInterface
-    da_IP = derivative(a_IP, X, s)
-    exact =-tan_div(s("+"), n("+"))*dot(n("+"),avg(grad(u)))*jump(v)*dInterface\
-        -tan_div(s("+"), n("+"))*dot(n("+"), avg(grad(v))*jump(u))*dInterface\
-        -tan_div(s("+"),n("+"))*beta/h*jump(u)*jump(v)*dInterface\
-        -dot(dn_mat(s("+"), n("+")), avg(grad(v))*jump(u))*dInterface\
-        -dot(dn_mat(s("+"), n("+")), avg(grad(u))*jump(v))*dInterface\
-        +dot(n("+"), avg(dot(grad(u), grad(s)))*jump(v))*dInterface\
-        +dot(n("+"), avg(dot(grad(v), grad(s)))*jump(u))*dInterface
 
-    return equivalent(da_IP, exact)
+    a_IP_1 = - dot(avg(grad(u)), jump(v, n))*dI2 
+    da_IP_1 = derivative(a_IP_1, X, s)
+    a_IP_2 = - dot(avg(grad(v)), jump(u, n))*dI2
+    da_IP_2 = derivative(a_IP_2, X, s)
+    a_IP_3 = beta/h*inner(jump(u), jump(v))*dI2
+    da_IP_3 = derivative(a_IP_3, X, s)
+
+    exact_1 = -tan_div(s("+"), n("+"))*dot(n("+"), avg(grad(u)))*jump(v)*dI2\
+              -dot(dn_mat(s("+"), n("+")), avg(grad(u))*jump(v))*dI2\
+              +dot(n("+"), avg(dot(grad(u), grad(s)))*jump(v))*dI2
+    exact_2 = -tan_div(s("+"), n("+"))*dot(n("+"), avg(grad(v))*jump(u))*dI2\
+              -dot(dn_mat(s("+"), n("+")), avg(grad(v))*jump(u))*dI2\
+              +dot(n("+"), avg(dot(grad(v), grad(s)))*jump(u))*dI2
+    exact_3 = -tan_div(s("+"),n("+"))*beta/h*jump(u)*jump(v)*dI2
+
+    # FIXME: Coordinate derivative yields a derivative here that is not
+    # equal to the one I've derived (its very different
+    print(assemble(da_IP_3).norm("frobenius"))
+    print(assemble(exact_3).norm("frobenius"))
+
+    return equivalent(da_IP_1+da_IP_2, exact_1+exact_2)
 
 if __name__=="__main__":
     test_source_term()

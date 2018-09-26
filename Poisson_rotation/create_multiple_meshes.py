@@ -36,7 +36,7 @@ def background_mesh(res=0.025):
 def front_mesh(res=0.025):
     geometry = Geometry()
     c = geometry.add_point((c_x,c_y,0))
-    mesh_r = 3*res # Width of mesh
+    mesh_r = 5*res # Width of mesh
     
     # Elliptic obstacle
     p1 = geometry.add_point((c_x-r_x, c_y,0))
