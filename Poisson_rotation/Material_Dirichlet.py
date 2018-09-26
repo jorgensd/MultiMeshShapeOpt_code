@@ -146,15 +146,15 @@ def compute_gradient(T, lmb, s):
     dJdO = -dot(jump(dot(grad(T), grad(s))), jump(grad(lmb)))*dO\
            +div(s)*dot(jump(grad(T)), jump(grad(lmb)))*dO\
            -dot(jump(grad(T)), jump(dot(grad(lmb),grad(s))))*dO
-    dJdI = -tan_div(s, n("+"))*dot(n("+"), avg(grad(T)))*jump(lmb)*dI\
-           -tan_div(s, n("+"))*dot(n("+"), avg(grad(lmb))*jump(T))*dI\
+    dJdI = -tan_div(s("+"), n("+"))*dot(n("+"), avg(grad(T)))*jump(lmb)*dI\
+           -tan_div(s("+"), n("+"))*dot(n("+"), avg(grad(lmb))*jump(T))*dI\
            -tan_div(s("+"),n("+"))*beta/h*jump(T)*jump(lmb)*dI\
-           -dot(dn_mat(s, n("+")), avg(grad(lmb))*jump(T))*dI\
-           -dot(dn_mat(s, n("+")), avg(grad(T))*jump(lmb))*dI\
+           -dot(dn_mat(s("+"), n("+")), avg(grad(lmb))*jump(T))*dI\
+           -dot(dn_mat(s("+"), n("+")), avg(grad(T))*jump(lmb))*dI\
            +dot(n("+"), avg(dot(grad(T), grad(s)))*jump(lmb))*dI\
            +dot(n("+"), avg(dot(grad(lmb), grad(s)))*jump(T))*dI
     
-    return dJOmega# + dJdO + dJdI 
+    return dJOmega + dJdI#+ dJdO 
 
 def deformation_vector(multimesh):
     from femorph import VolumeNormal
@@ -231,6 +231,7 @@ if __name__ == "__main__":
     # File("mm_grad0.pvd") << dJds.part(0)
     # File("mm_grad1.pvd") << dJds.part(1)
     dJds = dJds.inner(s_mm.vector())
+    print(dJds)
     epsilons = [0.01*0.5**i for i in range(5)]
     errors = {"0": [],"1": []}
     for eps in epsilons:

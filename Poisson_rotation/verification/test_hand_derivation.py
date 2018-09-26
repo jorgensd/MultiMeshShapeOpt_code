@@ -14,17 +14,16 @@ mvc_c = MeshValueCollection("size_t", mesh, 2)
 with XDMFFile("meshes/cf.xdmf") as infile:
     infile.read(mvc_c, "name_to_read")
 mc = cpp.mesh.MeshFunctionSizet(mesh, mvc_c)
-embed()
 
 dInterface = Measure("dS", domain=mesh, subdomain_data=mf, subdomain_id=2)
-print(assemble(Constant(1)*dInterface))
-exit(1)
-
 X = SpatialCoordinate(mesh)
 V = FunctionSpace(mesh, "CG", 1)
 S = VectorFunctionSpace(mesh, "CG", 1)
 s = TrialFunction(S)
+n = FacetNormal(mesh)
 u, v = project(1+cos(X[0]), V), TestFunction(V)
+
+
 
 def equivalent(a, b):
     a_ = assemble(a).array()
@@ -59,18 +58,36 @@ def test_J():
     exact = div(s)*0.5*u*u*dx
     assert(equivalent_vec(dJ, exact))
 
+def tan_div(s, n):
+    return div(s)-dot(dot(grad(s),n),n)
+
+def dn_mat(s, n):
+    return dot(outer(grad(s)*n,n).T,n) - dot(grad(s).T, n)
+
 def test_a_IP():
     alpha = 4.0
-    
-    a_IP = - (dot(avg(grad(u)), jump(v, n))*dI 
-              + dot(avg(grad(v)), jump(u, n))*dI)\
-              +alpha/h*jump(u)*jump(v)*dI
+    beta = 4.0
+    h = 2.0*Circumradius(mesh)
+    h = (h('+') + h('-')) / 2
+    a_IP = - (dot(avg(grad(u)), jump(v, n))*dInterface 
+              + dot(avg(grad(v)), jump(u, n))*dInterface)\
+              +alpha/h*jump(u)*jump(v)*dInterface
+    da_IP = derivative(a_IP, X, s)
+    exact =-tan_div(s("+"), n("+"))*dot(n("+"),avg(grad(u)))*jump(v)*dInterface\
+        -tan_div(s("+"), n("+"))*dot(n("+"), avg(grad(v))*jump(u))*dInterface\
+        -tan_div(s("+"),n("+"))*beta/h*jump(u)*jump(v)*dInterface\
+        -dot(dn_mat(s("+"), n("+")), avg(grad(v))*jump(u))*dInterface\
+        -dot(dn_mat(s("+"), n("+")), avg(grad(u))*jump(v))*dInterface\
+        +dot(n("+"), avg(dot(grad(u), grad(s)))*jump(v))*dInterface\
+        +dot(n("+"), avg(dot(grad(v), grad(s)))*jump(u))*dInterface
+
+    return equivalent(da_IP, exact)
 
 if __name__=="__main__":
     test_source_term()
     test_a_s()
     test_J()
-    # test_IP()
+    test_a_IP()
 # def a_O(u,v, beta=4.0):
 #     return beta*dot(jump(grad(u)), jump(grad(v)))*dO
 
@@ -78,10 +95,3 @@ if __name__=="__main__":
 #     dJdO = -dot(jump(dot(grad(u), grad(s))), jump(grad(v)))*dO\
 #            +div(s)*dot(jump(grad(u)), jump(grad(v)))*dO\
 #            -dot(jump(grad(u)), jump(dot(grad(v),grad(s))))*dO
-#     dJdI = -tan_div(s, n("+"))*dot(n("+"), avg(grad(u)))*jump(v)*dI\
-#            -tan_div(s, n("+"))*dot(n("+"), avg(grad(v))*jump(u))*dI\
-#            -tan_div(s("+"),n("+"))*beta/h*jump(u)*jump(v)*dI\
-#            -dot(dn_mat(s, n("+")), avg(grad(v))*jump(u))*dI\
-#            -dot(dn_mat(s, n("+")), avg(grad(u))*jump(v))*dI\
-#            +dot(n("+"), avg(dot(grad(u), grad(s)))*jump(v))*dI\
-#            +dot(n("+"), avg(dot(grad(v), grad(s)))*jump(u))*dI

@@ -38,7 +38,8 @@ def single_mesh(res=0.025):
     geometry.add_background_field([field])
 
     (points, cells, point_data,
-     cell_data, field_data) = generate_mesh(geometry, prune_z_0=True)
+     cell_data, field_data) = generate_mesh(geometry, prune_z_0=True,
+                                            geo_filename="meshes/outfile.geo")
     
     meshio.write("meshes/singlemesh.xdmf", meshio.Mesh(
         points=points, cells={"triangle": cells["triangle"]}))
