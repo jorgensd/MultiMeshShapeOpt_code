@@ -1,7 +1,7 @@
 from dolfin import *
 from IPython import embed;
 import matplotlib.pyplot as plt
-from numpy import allclose
+from numpy import isclose, allclose
 
 mesh = Mesh()
 with XDMFFile("meshes/singlemesh.xdmf") as infile:
@@ -17,7 +17,7 @@ mc = cpp.mesh.MeshFunctionSizet(mesh, mvc_c)
 
 dI2 = Measure("dS", domain=mesh, subdomain_data=mf, subdomain_id=2)
 X = SpatialCoordinate(mesh)
-V = FunctionSpace(mesh, "DG", 1)
+V = FunctionSpace(mesh, "DG", 2)
 S = VectorFunctionSpace(mesh, "CG", 1)
 s = TrialFunction(S)
 n = FacetNormal(mesh)
@@ -46,12 +46,12 @@ plt.show()
 def equivalent(a, b):
     a_ = assemble(a).array()
     b_ = assemble(b).array()
-    return allclose(a_,b_)
+    return allclose(a_,b_, rtol=1e-16)
 
 def equivalent_vec(a, b):
     a_ = assemble(a).get_local()
     b_ = assemble(b).get_local()
-    return allclose(a_,b_)
+    return allclose(a_,b_, rtol=1e-16)
 
 
 def test_source_term():
@@ -105,20 +105,24 @@ def test_a_IP():
 
     # FIXME: Coordinate derivative yields a derivative here that is not
     # equal to the one I've derived (its very different
-    print(assemble(da_IP_3).norm("frobenius"))
-    print(assemble(exact_3).norm("frobenius"))
+    a_f_1 = assemble(da_IP_1).norm("frobenius") 
+    a_e_1 = assemble(exact_1).norm("frobenius")
+    assert(isclose(a_f_1,a_e_1, rtol=1e-16))
+    a_f_2 = assemble(da_IP_2).norm("frobenius") 
+    a_e_2 = assemble(exact_2).norm("frobenius")
+    assert(isclose(a_f_2,a_e_2, rtol=1e-16))
+    a_f_3 = assemble(da_IP_3).norm("frobenius") 
+    a_e_3 = assemble(exact_3).norm("frobenius")
+    # assert(isclose(a_f_3,a_e_3, rtol=1e-16))
 
-    return equivalent(da_IP_1+da_IP_2, exact_1+exact_2)
 
 if __name__=="__main__":
     test_source_term()
     test_a_s()
     test_J()
     test_a_IP()
-# def a_O(u,v, beta=4.0):
-#     return beta*dot(jump(grad(u)), jump(grad(v)))*dO
-
-
-#     dJdO = -dot(jump(dot(grad(u), grad(s))), jump(grad(v)))*dO\
-#            +div(s)*dot(jump(grad(u)), jump(grad(v)))*dO\
-#            -dot(jump(grad(u)), jump(dot(grad(v),grad(s))))*dO
+    # test_a_O()
+    # beta*dot(jump(grad(u)), jump(grad(v)))*dO
+    # dJdO = beta*(-dot(jump(dot(grad(u), grad(s))), jump(grad(v)))*dO\
+    #              +div(s)*dot(jump(grad(u)), jump(grad(v)))*dO\
+    #              -dot(jump(grad(u)), jump(dot(grad(v),grad(s))))*dO)
