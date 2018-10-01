@@ -178,14 +178,12 @@ def Laplacian(mesh, mf_1, n, step, direction, alpha=1e-2):
     solve(a==l, deform , solver_parameters={"linear_solver":"mumps"})
     return deform
 
-def lin_elasticity(mesh, mf_1, n, step, direction, cvt=None):
+def lin_elasticity(mesh, mf_1, direction, cvt=None):
     # Rubber Beam Parameters
-    rho = 950 # Density (kg/m^3)
-    E = 0.1e9 # Youngs modulus (Pa)
-    nu = 0.48 # Poisson ratio
+    E = 32100e9#0.1e9 # Youngs modulus (Pa)
+    nu = 0.27#0.48 # Poisson ratio
 
     # Force due to gravity
-    g = 9.81 # m/s^2
     f = Constant((0,0))
 
     # Elasticity parameters
@@ -204,23 +202,20 @@ def lin_elasticity(mesh, mf_1, n, step, direction, cvt=None):
     x = SpatialCoordinate(mesh)
     dS_stress = Measure("ds", domain=mesh, subdomain_data=mf_1)
     if cvt is not None:
-        move = step*n*direction+cvt
+        move = direction+cvt
     else:
-        move = step*n*direction
+        move = direction
 
-    
     # Define variational problem
     u = TrialFunction(V)
     v = TestFunction(V)
     a = inner(sigma(u), grad(v))*dx
-    L = inner(f, v)*dx # + inner(move, v)*dS_stress(2)
+    L = inner(f, v)*dx
 
     bc = DirichletBC(V, move, mf_1, 2)
-
     # Create solution function
     u_fin = Function(V, name="deform")
-    solve(a==L, u_fin, bcs=[bc], solver_parameters={"linear_solver": "mumps"})
-
+    solve(a==L, u_fin, bcs=bc, solver_parameters={"linear_solver": "mumps"})
     return u_fin
 
 
@@ -292,10 +287,9 @@ def deform_mesh(multimesh_o, step, forget=False, vfac=Constant(1),
     normal = VolumeNormal(multimesh.part(1), [0], mf_1)
 
     deform_time = -time.time()
-    # w1 =  Laplacian(multimesh.part(1), mf_1, normal, step, direction,
-    #               alpha=5e-1)
-    w1 = lin_elasticity(multimesh.part(1), mf_1, normal, step, direction
-                        ,cvt=cvt)
+    w1 =  Laplacian(multimesh.part(1), mf_1, normal, step, direction,
+                  alpha=5e-1)
+    w1 = lin_elasticity(multimesh.part(1), mf_1, w1,cvt=cvt)
     ALE.move(multimesh.part(1), w1)
 
     deform_time += time.time()
@@ -411,16 +405,18 @@ if __name__ == "__main__":
     # Compute original volume and baricenter of obstacle
     Vol0, bx0, by0 = geometric_quantities(multimesh)
 
-    it, max_it, mq_tol, mq, func_old = 0, 50, 0.05, 0.5, 1e2
+    it, max_it, mq_tol, mq, func_old = 0, 100, 0.05, 0.5, 1e2
     v_o = Constant(0)
-    vfac, bfac = Constant(1e5), Constant(1e3)
+    vfac, bfac = Constant(1e4), Constant(1e2)
     red_tol = 1e-5 # 8e-5 standard red_tol
-    start_stp = 1e-4
+    start_stp = 1e-3
     stp_min,stp_max = 5e-9, 1e-1
 
     sub_problem_it, Js, dJs, Vol_off, Bx_off, By_off, MQ = ([] for _ in range(7))
+    meshfile = File("output/mesh.pvd")
     while (it<max_it):
         time_it = time.time()
+        meshfile << multimesh.part(1)
         if float(v_o)!=float(vfac):
             if it != 0:
                 stp_min/=2.
