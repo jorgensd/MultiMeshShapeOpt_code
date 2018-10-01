@@ -57,8 +57,8 @@ def front_mesh(res=0.025):
     # Elliptic obstacle
     p1 = geometry.add_point((c_x-r_x, c_y,0))
     p2 = geometry.add_point((c_x+r_x, c_y,0))
-    p12 = geometry.add_point((c_x,c_y+r_x, 0))
-    p21 = geometry.add_point((c_x,c_y-r_x, 0))
+    p12 = geometry.add_point((c_x,c_y+1.4*r_x, 0))
+    p21 = geometry.add_point((c_x,c_y-1.4*r_x, 0))
 
     arc_1 = geometry.add_spline([p1,p12,p2])
     arc_2 = geometry.add_spline([p2,p21,p1])
@@ -68,8 +68,8 @@ def front_mesh(res=0.025):
     # Surrounding mesh
     p3 = geometry.add_point((c_x-r_x-mesh_r, c_y,0))
     p4 = geometry.add_point((c_x+r_x+mesh_r, c_y,0))
-    p34 = geometry.add_point((c_x,c_y+r_x+mesh_r, 0))
-    p43 = geometry.add_point((c_x,c_y-r_x-mesh_r, 0))
+    p34 = geometry.add_point((c_x,c_y+1.4*r_x+mesh_r, 0))
+    p43 = geometry.add_point((c_x,c_y-1.4*r_x-mesh_r, 0))
     arc_5 = geometry.add_spline([p3,p34,p4])
     arc_6 = geometry.add_spline([p4,p43,p3])
 

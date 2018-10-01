@@ -379,6 +379,9 @@ if __name__ == "__main__":
     import sys
     import time
     start = time.time()
+
+    # cvt = True
+    cvt = False
     
     # Get mesh and meshfunction from file
     meshes =[]
@@ -407,7 +410,8 @@ if __name__ == "__main__":
 
     it, max_it, mq_tol, mq, func_old = 0, 100, 0.05, 0.5, 1e2
     v_o = Constant(0)
-    vfac, bfac = Constant(1e4), Constant(1e2)
+    vfac, bfac = Constant(2.5e4), Constant(5e2)
+    vfac_org = float(vfac)
     red_tol = 1e-5 # 8e-5 standard red_tol
     start_stp = 1e-3
     stp_min,stp_max = 5e-9, 1e-1
@@ -493,27 +497,31 @@ if __name__ == "__main__":
                  MeshQuality.radius_ratio_min_max(multimesh.part(1))[0])
 
         print('*'*5 + "CVT-smoothing" + '*'*5)
-        from femorph.Legacy import DiscreteMeshRepair
-        from femorph import VolumeNormal
-        mf_0,mf_1 = load_facet_function(multimesh)
-        cvt_time = -time.time()
-        n_ = VolumeNormal(multimesh.part(1),[0], mf_1)
-        (L1B, L2B,fix_deform) = DiscreteMeshRepair(multimesh.part(1), mf_1,
-                                                   SmoothVolume=False,
-                                                   SmoothBoundary=True,
-                                                   Tangential=True,
-                                                   VertexNormal=n_,
-                                                   MaxIter = 10, Step = 1.0,
-                                                   Stop = 1e-6,
-                                                   FixPlanes = [[1,0.5,1e-3]],Vis=False)
-        cvt_time += time.time()
-        print("CVT-time: %.2e" % cvt_time) 
-        print("Updating domain")
+        if cvt:
+            from femorph.Legacy import DiscreteMeshRepair
+            from femorph import VolumeNormal
+            mf_0,mf_1 = load_facet_function(multimesh)
+            cvt_time = -time.time()
+            n_ = VolumeNormal(multimesh.part(1),[0], mf_1)
+            (L1B, L2B,fix_deform) = DiscreteMeshRepair(multimesh.part(1), mf_1,
+                                                       SmoothVolume=False,
+                                                       SmoothBoundary=True,
+                                                       Tangential=True,
+                                                       VertexNormal=n_,
+                                                       MaxIter = 10, Step = 1.0,
+                                                       Stop = 1e-6,
+                                                       FixPlanes = [[1,0.5,1e-3]],Vis=False)
+            cvt_time += time.time()
+            print("CVT-time: %.2e" % cvt_time) 
+            print("Updating domain")
         
         
         print("Updating domain")
-        multimesh, w1 = deform_mesh(multimesh, step, vfac=vfac, bfac=bfac,
-                                    cvt=fix_deform)
+        if cvt:
+            multimesh, w1 = deform_mesh(multimesh, step, vfac=vfac, bfac=bfac,
+                                        cvt=fix_deform)
+        else:
+            multimesh, w1 = deform_mesh(multimesh, step, vfac=vfac, bfac=bfac)
         mq = min(MeshQuality.radius_ratio_min_max(multimesh.part(0))[0],
                  MeshQuality.radius_ratio_min_max(multimesh.part(1))[0])
         MQ.append(mq)
@@ -526,12 +534,12 @@ if __name__ == "__main__":
               float(by_off/by0*100)))
         print("Gradient norm: %.5e" %np.sqrt(np.abs(tmp_grad_norm)))
         print("Mesh quality %.2f" % mq_pre)
-
+        print("Vol off %.2e (Full vol %.2e):" %(vol_off,Vol0)) 
         if abs(float(tmp_diff/J)) < red_tol:
             vfac = Constant(2*vfac)
             bfac = Constant(2*bfac)
             print("Reduction tolerance reached (%.2e), increasing penalty" %red_tol)
-            if float(vfac) > 2**4*1e5:
+            if float(vfac) > 2**5*vfac_org:
                 print("Reached max penalty parameter, Volume offset: %.2e%%" %(float((vol_off)/(Vol0)*100)))
                 break
         it += 1
