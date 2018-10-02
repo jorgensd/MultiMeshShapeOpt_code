@@ -7,8 +7,8 @@ from IPython import embed
 import sympy
 from matplotlib import pylab as plt
 from Cables_3 import eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales
-# from Cables_5 import eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales
-# from Cable_isosceles import  eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales 
+;# from Cables_5 import eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales
+from Cable_isosceles import  eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales 
 set_log_level(LogLevel.ERROR)
 
 # Initial cable information
@@ -167,8 +167,9 @@ def main():
     )
     nlp.num_option('obj_scaling_factor',1)#1e-7)
     nlp.int_option('max_iter', 100)
-    nlp.num_option('tol', 1e-5)
-    nlp.num_option('bound_relax_factor', 1e-12) # So it does not violate the boundary constraint
+    nlp.num_option('acceptable_tol', 1e-2)
+    nlp.num_option('tol', 1e-2)
+    nlp.num_option('bound_relax_factor', 0) # So it does not violate the boundary constraint
 
     # nlp.str_option('mu_strategy',"adaptive")
     # nlp.str_option('nlp_scaling_method',"gradient-based")
