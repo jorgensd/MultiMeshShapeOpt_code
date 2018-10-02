@@ -60,6 +60,10 @@ class MultiCable():
         """ Initialize heat coefficient and source function 
         for all cables
         """
+        if isinstance(metal,float) and isinstance(iso,float):
+            # Wrapping single parameters as list
+            metal = metal*numpy.ones(len(sources))
+            iso = iso*numpy.ones(len(sources))
         self.V = MultiMeshFunctionSpace(self.multimesh, "CG", 1)
         W = MultiMeshFunctionSpace(self.multimesh, "DG", 0)
         W0 = FunctionSpace(self.cable_meshes[0], "DG", 0)
@@ -77,8 +81,8 @@ class MultiCable():
             X = FunctionSpace(self.cable_meshes[i+1], "DG", 0)            
             lmbx = Function(X)
             lmbx.vector()[:] = ((self.cable_subdomains[i].array() == 13)*fill + 
-                                (self.cable_subdomains[i].array() == 14)*iso +
-                                (self.cable_subdomains[i].array() == 15)*metal)
+                                (self.cable_subdomains[i].array() == 14)*iso[i] +
+                                (self.cable_subdomains[i].array() == 15)*metal[i])
             self.lmb.assign_part(i+1, lmbx)
             
     def WeakCableShapeGradSurf(self, T, adjT, lmb, c, f, n):
