@@ -4,29 +4,28 @@ import pyipopt
 import sympy
 
 
-class MultiCableSolver():
-    self.num_cables = 0 # Number of sub-cables in the MultiCable
-    self.g_scale = 1 # Scaling of coefficient for gradient constraint
-    self.outer_radius = 1.2 # Radius of background cable
-    self.inner_radius = 0.3 # Radius for each inner cable
-    self.distance_from_outer = 0.01 # Distance for each cable to outer boundary
-    self.distance_from_internal = 0.005 # Distance between each internal cable
+class MultiCableOptimization():
     
-    def __init__(self, num_cables, cable_scales, J, dJ):
+    def __init__(self, num_cables, cable_scales, J, dJ):      
+        self.g_scale = 1 # Scaling of coefficient for gradient constraint
+        self.outer_radius = 1.2 # Radius of background cable
+        self.inner_radius = 0.3 # Radius for each inner cable
+        self.distance_from_outer = 0.05 # Distance for each cable to outer boundary
+        self.distance_from_internal = 0.025 # Distance between each internal cable
         self.num_cables = num_cables
         self.inner_radius *= cable_scales
         self.max_radius = self.outer_radius - self.inner_radius\
                           - self.distance_from_outer
-        sympy_g(self, self.num_cables)
-        sympy_jac_g(self)
-        solve_init(self, J, dJ)
+        self.sympy_g(self.num_cables)
+        self.sympy_jac_g()
+        self.solve_init(J, dJ)
 
-    def eval_g(x):
+    def eval_g(self, x):
         """ Evaluate inequality constraint, g(x) <= 0, """
-        return replace_sympy_g(x)
+        return self.replace_sympy_g(x)
 
 
-    def eval_jac_g(cable_positions, flag):
+    def eval_jac_g(self, cable_positions, flag):
         """ The constraint Jacobian:
         flag = True  means 'tell me the sparsity pattern';
         flag = False means 'give me the Jacobian'.
@@ -43,7 +42,7 @@ class MultiCableSolver():
             cols = list(range(nvar)) * ncon
             return (numpy.array(rows), numpy.array(cols))
         else:
-            return replace_sympy_jac_g(cable_positions)
+            return self.replace_sympy_jac_g(cable_positions)
 
     
     def sympy_g(self, num_cables):
@@ -63,7 +62,7 @@ class MultiCableSolver():
                 xi, yi = x[i], y[i]
                 xj, yj = x[j], y[j]
                 int_radius = self.inner_radius[i] + self.inner_radius[j]\
-                             + distance_from_internal
+                             + self.distance_from_internal
                 # FIXME: Max_int_radius should change with each cable radius
                 g.append(int_radius**2 - (xi - xj)**2 - (yi - yj)**2)
         self.g = sympy.Matrix(g)
@@ -77,8 +76,8 @@ class MultiCableSolver():
 
     def replace_sympy_g(self, positions):
         """ Create numpy array of constraint at current positions """
-        g_numpy = g.subs([(self.z[i], positions[i])
-                          for i in range(2*self.num_cables)])
+        g_numpy = self.g.subs([(self.z[i], positions[i])
+                               for i in range(2*self.num_cables)])
         return self.g_scale*numpy.array(g_numpy).astype(float)
 
 
@@ -91,23 +90,25 @@ class MultiCableSolver():
 
     def solve_init(self, eval_J, eval_dJ):
         nvar = int(2*self.num_cables) 
-        ncon = int(self.num_cables + num-cables*(num_cables-1)/2)
+        ncon = int(self.num_cables + self.num_cables*(self.num_cables-1)/2)
         inf_var = numpy.inf*numpy.ones(nvar, dtype=float)
         inf_con = numpy.inf*numpy.ones(ncon, dtype=float)
-        self.npl = pyipopt.create(nvar,      # Number of controls
+        zero_con = numpy.zeros(ncon, dtype=float)
+        self.nlp = pyipopt.create(nvar,      # Number of controls
                                   -inf_var,  # Lower bounds for Control
                                   inf_var,   # Upper bounds for Control
                                   ncon,      # Number of constraints
                                   -inf_con,  # Lower bounds for contraints
-                                  inf_con,   # Upper bounds for contraints
+                                  zero_con,   # Upper bounds for contraints
                                   nvar*ncon, # Number of nonzeros in cons. Jac
                                   0,         # Number of nonzeros in cons. Hes
                                   lambda pos: eval_J(pos),  # Objective eval
                                   lambda pos: eval_dJ(pos), # Obj. grad eval
-                                  eval_g,    # Constraint evaluation
-                                  eval_jac_g # Constraint Jacobian evaluation
+                                  self.eval_g,    # Constraint evaluation
+                                  self.eval_jac_g # Constraint Jacobian evaluation
         )
-
+         # So it does not violate the boundary constraint
+        self.nlp.num_option('bound_relax_factor', 0)
 
     def solve(self, cable_positions):
-        return self.npl.solve(self.cable_positions)[0]
+        return self.nlp.solve(cable_positions)[0]
