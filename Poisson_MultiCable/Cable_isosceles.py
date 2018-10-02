@@ -1,8 +1,7 @@
 from dolfin import *
 import numpy
 import matplotlib.pyplot as plt
-from femorph import VolumeNormal # femorph branch dokken/restructuring
-
+import matplotlib as mpl
 # Physical parameters
 num_cables = 3       # Number of inner cables
 lmb_metal = 205.      # Heat coefficient inside the metal (aluminium)
@@ -45,9 +44,9 @@ def projection(cable_positions, max_radius):
 # c3 = rad*numpy.array([numpy.cos(2*numpy.pi/3), numpy.sin(2*numpy.pi/3)])
 
 # Wrong angles close to center
-c1 = numpy.array([0, 0.45])
-c2 = numpy.array([-0.4, -0.15])
-c3 = numpy.array([0.2,-0.4])
+c1 = numpy.array([-0.2, 0.4])
+c2 = numpy.array([-0.35, -0.3])
+c3 = numpy.array([0.3,-0.4])
 
 
 
@@ -115,10 +114,12 @@ f = MultiMeshFunction(W)
 f.assign_part(0, project(Constant(0.0), W0))
 X = FunctionSpace(cable_meshes[0], "DG", 0)
 fx = Function(X)
-for i in range(num_cables):
-    fx.vector()[:] = (14.5 < cable_subdomains[0].array() )*(5)
-    f.assign_part(i+1, fx)
+# cnorm = mpl.colors.Normalize(vmin=0, vmax=100)
 
+for i in range(num_cables):
+    fx.vector()[:] = (14.5 < cable_subdomains[0].array() )*(5 + 10*(i>1))
+    f.assign_part(i+1, fx)
+    # plot(f.part(i+1, deepcopy=True), norm=cnorm)
 # Construct heat coefficient function
 # Note: we assume that all cable meshes have the same data structure
 lmb = MultiMeshFunction(W)
@@ -246,6 +247,7 @@ def eval_dJ(cable_positions):
         lmb_cable = lmb.part(i+1, deepcopy=True)
         f_cable = f.part(i+1, deepcopy=True)
 
+        from femorph import VolumeNormal
         normal = VolumeNormal(cable_mesh, [0], cable_facet, [16,17])
         dJ_Surf = WeakCableShapeGradSurf(T_cable, adjT_cable,
                                          lmb_cable, c, f_cable, n=normal)
@@ -266,9 +268,9 @@ def eval_dJ(cable_positions):
 
 def main():
     # Steepest decent is not reliable
-    TFiles = [File("output/T_part_%d.pvd" %(i)) for i in range(num_cables+1)]
-    FFiles = [File("output/f-part_%d.pvd" %(i)) for i in range(num_cables+1)]
-    LFiles = [File("output/lmb-part_%d.pvd" %(i)) for i in range(num_cables+1)]
+    TFiles = [File("output/isoT_part_%d.pvd" %(i)) for i in range(num_cables+1)]
+    # FFiles = [File("output/isof-part_%d.pvd" %(i)) for i in range(num_cables+1)]
+    # LFiles = [File("output/isolmb-part_%d.pvd" %(i)) for i in range(num_cables+1)]
 
     # Implementation of a steepest descent method with projection
     # for the inequality constraints
@@ -286,20 +288,19 @@ def main():
     old_loc = local_cable_positions.copy()
     it = 0
     max_iter = 250
-    rel_tol = 1e-6
+    tol = 1e-8
     js = [eval_J(local_cable_positions, True)]
     step = 1
     min_stp = 1e-6
     max_stp = 1
     last_step = step
     prog = 1e10
+    rel_tol = 1e-6
     print("Starting optimization")
     #from plot_3_cables import plot_T #,plot_lambda
-    # plot_lambda(lmb,met=lmb_metal,air=lmb_air,iso=lmb_insulation, subdomain=cable_subdomains[0])
     T_max = numpy.max(T.vector().get_local()) # Max temperature at initial configuration
     while it < max_iter:
         if prog ==0:
-            print("Cable not moving any longer")
             break
         # Save for each iteration
         # k-th cable position
@@ -315,17 +316,17 @@ def main():
         compute_angles(old_cable_positions)
         for i in range(num_cables+1):
             TFiles[i] << T.part(i)
-            FFiles[i] << f.part(i)
-            LFiles[i] << lmb.part(i)
+            # FFiles[i] << f.part(i)
+            # LFiles[i] << lmb.part(i)
         print("Relative decrease %.2e" %( numpy.abs(js[it]-js[it-1])/js[it]))
-        #Save figure of initial configuration
         if it == 0:
-            #plot_T(T, T_max,old_cable_positions, r_met, r_iso, "Initial_temperature", i=1)
+            #plot_T(T, T_max,old_cable_positions, r_met, r_iso, "Initial_temperature_iso")
             pass
         elif numpy.abs(js[it]-js[it-1])/js[it] < rel_tol:
             print("Decrease less than reduction tolerance, optimized solution found")
             break
             
+
         # Projected Armijo rule
         # (section 2.2.2.1 in Hinze and Ulbrich, 2009)
         proj_armijo=False
@@ -336,6 +337,7 @@ def main():
             assert((old_loc==old_cable_positions).all())
             local_cable_positions = old_cable_positions - step*gradient
             # Projected k+1-th cable position
+            #print("Angle before projection")
             print(abs(step*gradient), "Relative movement")
             update_mesh(local_cable_positions, True)
             local_cable_positions, violate = projection(local_cable_positions,
@@ -366,18 +368,15 @@ def main():
             print( "Minimum step-length occurred, found minima")
             break
         elif step>=max_stp:
-            print("Step exceding maximum limit")
             step = max_stp
             last_step=step
         else:
-            print("Increasing steplength")
             step*=2
             last_step=step
         old_loc = local_cable_positions.copy()
         it += 1
     # Save final temperature
-    # plot_T(T, T_max,old_cable_positions, r_met, r_iso,"Final_temperature")
-    #plot_T(T, T_max,old_cable_positions, r_met, r_iso,"Cables_3",i=2)
+    plot_T(T, T_max,old_cable_positions, r_met, r_iso,"Final_temperature_iso")
     
     print( "Initial J: %.5e" % js[0])
     print( "Optimal J: %.5e" % js[-1])
@@ -392,10 +391,6 @@ def main():
     print( "Cable_positions:")
     for i in range(num_cables):
         print( "%10.3e, %10.3e" %(d[i,0],d[i,1]))
-    # plot(T)
-    # plt.show()
-    # plt.plot(js)
-    # plt.show()
     compute_angles(old_cable_positions)
 
 if __name__ == "__main__":
