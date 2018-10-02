@@ -381,7 +381,17 @@ if __name__ == "__main__":
     start = time.time()
 
     # cvt = True
-    cvt = False
+    try:
+        wedge = eval(sys.argv[1])
+    except:
+        wedge = False
+    # Disable CVT if we use a mesh with allready wedge
+    if wedge:
+        out_name = "wedge_"
+        cvt = False
+    else:
+        out_name = ""
+        cvt = True
     
     # Get mesh and meshfunction from file
     meshes =[]
@@ -401,8 +411,8 @@ if __name__ == "__main__":
     VQ = MultiMeshFunctionSpace(multimesh, TH)
     us,ps = [],[]
     for i in range(multimesh.num_parts()):
-        us.append(XDMFFile("output/u%d.xdmf" %i))
-        ps.append(XDMFFile("output/p%d.xdmf" %i))
+        us.append(XDMFFile("output/"+out_name+"u%d.xdmf" %i))
+        ps.append(XDMFFile("output/"+out_name+"p%d.xdmf" %i))
     out = {"VQ": VQ,"w":MultiMeshFunction(VQ)}
 
     # Compute original volume and baricenter of obstacle
@@ -417,7 +427,7 @@ if __name__ == "__main__":
     stp_min,stp_max = 5e-9, 1e-1
 
     sub_problem_it, Js, dJs, Vol_off, Bx_off, By_off, MQ = ([] for _ in range(7))
-    meshfile = File("output/mesh.pvd")
+    meshfile = File("output/"+out_name+"mesh.pvd")
     while (it<max_it):
         time_it = time.time()
         meshfile << multimesh.part(1)
@@ -549,5 +559,5 @@ if __name__ == "__main__":
             plt.show()
             raise ValueError("Mesh Degenerated")
 
-    np.savez("output/Optimization_results.npz", J=Js,dJ=dJs, Vol=Vol_off, Bx=Bx_off, By=By_off, MQ=MQ, subproblem=sub_problem_it)
+    np.savez("output/"+out_name+"Optimization_results.npz", J=Js,dJ=dJs, Vol=Vol_off, Bx=Bx_off, By=By_off, MQ=MQ, subproblem=sub_problem_it)
     print("Endtime %3d" %(time.time()-start))
