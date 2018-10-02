@@ -44,10 +44,10 @@ for i in range(MC.multimesh.num_parts()):
 
 
 opt = MultiCableOptimization(3, scales, MC.eval_J, MC.eval_dJ)
-opt.nlp.num_option('obj_scaling_factor',1e-2) 
-opt.nlp.int_option('max_iter', 50)
+# opt.nlp.num_option('obj_scaling_factor',1e-2) 
+# opt.nlp.int_option('max_iter', 50)
 # opt.nlp.num_option('acceptable_tol', 1e-3)
-opt.nlp.num_option('tol', 5e-4)
+# opt.nlp.num_option('tol', 5e-4)
 
 opt_sol = opt.solve(cable_positions)
 compute_angles(opt_sol)

@@ -91,7 +91,8 @@ class MultiCableOptimization():
     def solve_init(self, eval_J, eval_dJ):
         nvar = int(2*self.num_cables) 
         ncon = int(self.num_cables + self.num_cables*(self.num_cables-1)/2)
-        inf_var = numpy.inf*numpy.ones(nvar, dtype=float)
+        inf_var = 1.2*numpy.ones(nvar, dtype=float)
+        inf_var[0] = 0
         inf_con = numpy.inf*numpy.ones(ncon, dtype=float)
         zero_con = numpy.zeros(ncon, dtype=float)
         self.nlp = pyipopt.create(nvar,      # Number of controls
