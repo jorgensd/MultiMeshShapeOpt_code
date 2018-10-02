@@ -166,9 +166,10 @@ def main():
         eval_jac_g,                                    # Constraint Jacobian evaluation
     )
     nlp.num_option('obj_scaling_factor',1)#1e-7)
-    nlp.int_option('max_iter', 15)
-    nlp.int_option('print_level', 5)
-    # nlp.num_option('tol', 1e-6)
+    nlp.int_option('max_iter', 100)
+    nlp.num_option('tol', 1e-5)
+    nlp.num_option('bound_relax_factor', 1e-12) # So it does not violate the boundary constraint
+
     # nlp.str_option('mu_strategy',"adaptive")
     # nlp.str_option('nlp_scaling_method',"gradient-based")
     # nlp.num_option("mu_max", 0.1)
