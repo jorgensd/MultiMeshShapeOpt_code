@@ -6,9 +6,9 @@ import pyipopt
 from IPython import embed
 import sympy
 from matplotlib import pylab as plt
-# from Cables_3 import eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales
+from Cables_3 import eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales
 # from Cables_5 import eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales
-from Cable_isosceles import  eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales 
+# from Cable_isosceles import  eval_J, eval_dJ, update_mesh, T, cable_positions, num_cables, cable_scales 
 set_log_level(LogLevel.ERROR)
 
 # Initial cable information
@@ -21,7 +21,7 @@ max_radius =  outer_cable_mesh_radius - inner_cable_mesh_radius  \
 
 
 # Constraint informatuio
-g_scale = 1e+5  # Scaling coefficient for inequality constraint
+g_scale = 1  # Scaling coefficient for inequality constraint
 def sympy_g(num_cables):
     """ Create constraint for N cables """
     x = list(sympy.symbols("x0:%d" %num_cables))
@@ -36,7 +36,7 @@ def sympy_g(num_cables):
             xi, yi = x[i],y[i]
             xj, yj = x[j],y[j]
             int_radius = inner_cable_mesh_radius[i]+inner_cable_mesh_radius[j]\
-                         +distance_from_outer_cable_mesh
+                         +0.5*distance_from_outer_cable_mesh
             # FIXME: Max_int_radius should change with each cable radius
             g.append(int_radius**2-(xi-xj)**2-(yi-yj)**2)
     g = sympy.Matrix(g)
@@ -158,22 +158,23 @@ def main():
         numpy.zeros(ncon, dtype=float),            # Upper bounds of inequality constraints
         nvar*ncon,                                     # Number of nonzeros in the constraint Jacobian
         0,                                             # Number of nonzeros in the Hessian
-        # lambda pos: eval_robust_J(pos),                # Objective evaluation
-        # lambda pos: eval_robust_dJ(pos),               # Objective gradient evaluation
-        lambda pos: -test_J(pos),                      # Objective evaluation
-        lambda pos: -test_dJ(pos),                     # Objective gradient evaluation
+        lambda pos: eval_robust_J(pos),                # Objective evaluation
+        lambda pos: eval_robust_dJ(pos),               # Objective gradient evaluation
+        # lambda pos: test_J(pos),                      # Objective evaluation
+        # lambda pos: test_dJ(pos),                     # Objective gradient evaluation
         eval_g,                                        # Constraint evaluation
         eval_jac_g,                                    # Constraint Jacobian evaluation
     )
-    nlp.num_option('obj_scaling_factor',1e-2)#1e-7)
-    nlp.int_option('max_iter', 100)
+    nlp.num_option('obj_scaling_factor',1)#1e-7)
+    nlp.int_option('max_iter', 15)
     nlp.int_option('print_level', 5)
-    nlp.num_option('tol', 1e-4)
-    nlp.str_option('mu_strategy',"adaptive")
-    nlp.num_option("mu_max", 1)
-    nlp.num_option('mu_init', 1)#1e25)
-    nlp.num_option('bound_relax_factor', 0) # So it does not violate the boundary constraint
-    nlp.num_option('acceptable_tol', 1e-5) 
+    # nlp.num_option('tol', 1e-6)
+    # nlp.str_option('mu_strategy',"adaptive")
+    # nlp.str_option('nlp_scaling_method',"gradient-based")
+    # nlp.num_option("mu_max", 0.1)
+    # nlp.num_option('mu_init', 0.1)#1e25)
+    #nlp.num_option('bound_relax_factor', 0) # So it does not violate the boundary constraint
+    # nlp.num_option('acceptable_tol', 1e-5) 
     # Solve the optimisation problem
     opt_cable_pos = nlp.solve(cable_positions_numpy)[0]
     nlp.close()
