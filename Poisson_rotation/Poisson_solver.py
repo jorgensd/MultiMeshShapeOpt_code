@@ -178,19 +178,26 @@ class PoissonSolver():
 
 def all_angles():
     import numpy as np
-    angles = [i for i in range(360)]
+    delta = 5
+    N = int(360/delta)
+    angles = [delta*i for i in range(N)]
     p = Point(1.25,0.875)
     m_names = ["meshes/multimesh_%d.xdmf" %i for i in range(2)]
     f_names = ["meshes/mf_%d.xdmf" %i for i in range(2)]
-    fexp = Expression('100*x[0]*sin(x[0])*cos(x[1])', degree=4)
+    fexp = Expression('x[0]*sin(x[0])*cos(x[1])', degree=4)
     solver = PoissonSolver(p, 0, m_names, f_names, fexp)
     Js = []
+    dJds = []
     out0 = File("output/T0_new.pvd")
     out = File("output/T_new.pvd")
     for theta in angles:
         Js.append(solver.eval_J(theta))
+        dJds.append(solver.eval_dJ(theta))
         out0 << solver.T.part(0)
         out << solver.T.part(1)
+    print(angles[np.argmin(Js)], Js[np.argmin(Js)])
+    print(angles[np.argmin(np.abs(dJds))], dJds[np.argmin(np.abs(dJds))])
+
     np.savez("results/Global_Dirichlet.npz", deg=angles, J=Js)
     files = np.load("results/Global_Dirichlet.npz")
     fig = plt.figure()
@@ -204,18 +211,26 @@ def all_angles():
     plt.annotate(r'b)', xy=(1.25, -0.2), color="k",size=20)
     fig.set_size_inches((12, 8.5), forward=False)
     plt.savefig("figures/MultiMeshObstacleAll.png",bbox_inches='tight',format='png', dpi=300)
+    fig2 = plt.figure()
+    plt.plot(angles, dJds, '-',color=plt.cm.coolwarm(0), linewidth=4)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.xlim(0., 360.0)
+    plt.grid()
+    fig.set_size_inches((12, 8.5), forward=False)
+    plt.savefig("figures/MultiMeshGrad.png",
+                bbox_inches='tight',format='png', dpi=300)
 
     # os.system("convert figures/MultiMeshObstacleAll.png -trim figures/MultiMeshObstacleAll.png")
 
     
 if __name__ == '__main__':
     all_angles()
-    p = Point(1.25,0.875)
-    m_names = ["meshes/multimesh_%d.xdmf" %i for i in range(2)]
-    f_names = ["meshes/mf_%d.xdmf" %i for i in range(2)]
-    fexp = Expression('x[0]*sin(x[0])*cos(x[1])', degree=4)
-    solver = PoissonSolver(p, 0, m_names, f_names, fexp)
-    print(solver.eval_J(0), solver.eval_dJ(0))
+    # p = Point(1.25,0.875)
+    # m_names = ["meshes/multimesh_%d.xdmf" %i for i in range(2)]
+    # f_names = ["meshes/mf_%d.xdmf" %i for i in range(2)]
+    # fexp = Expression('x[0]*sin(x[0])*cos(x[1])', degree=4)
+    # solver = PoissonSolver(p, 0, m_names, f_names, fexp)
 
 
     

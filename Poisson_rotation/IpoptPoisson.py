@@ -50,18 +50,19 @@ class IpoptAngle():
 
 from Poisson_solver import *
 p = Point(1.25,0.875)
-theta = numpy.array([-45], dtype=float)
+theta = numpy.array([0], dtype=float)
 m_names = ["meshes/multimesh_%d.xdmf" %i for i in range(2)]
 f_names = ["meshes/mf_%d.xdmf" %i for i in range(2)]
-fexp = Expression('10*x[0]*sin(x[0])*cos(x[1])', degree=4)
+fexp = Expression('x[0]*sin(x[0])*cos(x[1])', degree=4)
 solver = PoissonSolver(p, theta[0], m_names, f_names, fexp)
+
 File("output/firstmesh.pvd") << solver.T.part(1)
 optimizer = IpoptAngle(1,solver.eval_J, solver.eval_dJ)
-optimizer.nlp.int_option('max_iter',10)
-optimizer.nlp.num_option('obj_scaling_factor',1e0)
+optimizer.nlp.int_option('max_iter',30)
+
 opt_theta = optimizer.solve(theta)[0]
 
-print(opt_theta)
+print(opt_theta, solver.eval_J(opt_theta))
 File("output/tmp0Opt.pvd") << solver.T.part(0)
 File("output/tmpOpt.pvd") << solver.T.part(1)
 

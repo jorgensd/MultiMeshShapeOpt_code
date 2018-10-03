@@ -88,6 +88,6 @@ if __name__=="__main__":
     try:
         res = float(sys.argv[1])
     except IndexError:
-        res = 0.025
+        res = 0.0125
     background_mesh(res)
     front_mesh(res)
