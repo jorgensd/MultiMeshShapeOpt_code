@@ -1,7 +1,7 @@
 from dolfin import *
 import matplotlib.pyplot as plt
 import numpy as np
-import moola
+#import moola
 import os
 set_log_level(LogLevel.ERROR)
 os.system("mkdir -p results")
@@ -118,7 +118,7 @@ def solve_poisson(multimesh):
     L = l_s(f,v)
 
     # Deactivate hole in background mesh
-    multimesh.auto_cover(0, Point(1.25, 0.875))
+    multimesh.auto_cover(0, Point(1.25, 0.876))
 
     
     # Assemble linear system
@@ -163,7 +163,7 @@ def solve_adjoint(T):
     lmb = MultiMeshFunction(V)
     a, L = lhs(adjoint), rhs(adjoint)
     multimesh.build()
-    multimesh.auto_cover(0,Point(1.25, 0.875))
+    multimesh.auto_cover(0,Point(1.25, 0.876))
     
     A = assemble_multimesh(a)
     b = assemble_multimesh(L)
@@ -234,22 +234,30 @@ def deform_mesh(s, forget=False):
     
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    import numpy as np
-    all_angles()
-    files = np.load("results/Global_Dirichlet.npz")
-    fig = plt.figure()
-    plt.plot(files["deg"], files["J"], '-',color=plt.cm.coolwarm(0), linewidth=4)
-    plt.xticks(fontsize=28)
-    plt.yticks(fontsize=28)
-    plt.xlim(0., 360.0)
-    plt.xlabel(r"$\theta$", fontsize=35)
-    plt.ylabel(r"$J(T(\theta)))$", fontsize=35,rotation=90)
-    plt.grid()
-    plt.annotate(r'b)', xy=(1.25, -0.2), color="k",size=20)
-    fig.set_size_inches((12, 8.5), forward=False)
-    plt.savefig("figures/MultiMeshObstacleAll.png",bbox_inches='tight',format='png', dpi=300)
+    # import numpy as np
+    # all_angles()
+    # files = np.load("results/Global_Dirichlet.npz")
+    # fig = plt.figure()
+    # plt.plot(files["deg"], files["J"], '-',color=plt.cm.coolwarm(0), linewidth=4)
+    # plt.xticks(fontsize=28)
+    # plt.yticks(fontsize=28)
+    # plt.xlim(0., 360.0)
+    # plt.xlabel(r"$\theta$", fontsize=35)
+    # plt.ylabel(r"$J(T(\theta)))$", fontsize=35,rotation=90)
+    # plt.grid()
+    # plt.annotate(r'b)', xy=(1.25, -0.2), color="k",size=20)
+    # fig.set_size_inches((12, 8.5), forward=False)
+    # plt.savefig("figures/MultiMeshObstacleAll.png",bbox_inches='tight',format='png', dpi=300)
 
-    os.system("convert figures/MultiMeshObstacleAll.png -trim figures/MultiMeshObstacleAll.png")
+    # os.system("convert figures/MultiMeshObstacleAll.png -trim figures/MultiMeshObstacleAll.png")
+    deform_mesh(0)
+    T = solve_poisson(multimesh)
+    lmb = solve_adjoint(T)
+    J = eval_J(T)
+    dJ = eval_dJ(T, lmb)
+    print(J, dJ)
+
+    exit(1)
     it = 0
     tot_rot = 0
     Js = []
