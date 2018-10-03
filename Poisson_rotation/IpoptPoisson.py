@@ -59,7 +59,7 @@ solver = PoissonSolver(p, theta[0], m_names, f_names, fexp)
 File("output/firstmesh.pvd") << solver.T.part(1)
 optimizer = IpoptAngle(1,solver.eval_J, solver.eval_dJ)
 optimizer.nlp.int_option('max_iter',30)
-
+optimizer.nlp.num_option("tol", 1e-6)
 opt_theta = optimizer.solve(theta)[0]
 
 print(opt_theta, solver.eval_J(opt_theta))

@@ -178,7 +178,7 @@ class PoissonSolver():
 
 def all_angles():
     import numpy as np
-    delta = 5
+    delta = 0.3
     N = int(360/delta)
     angles = [delta*i for i in range(N)]
     p = Point(1.25,0.875)
