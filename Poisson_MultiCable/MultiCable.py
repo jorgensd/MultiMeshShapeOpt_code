@@ -171,9 +171,9 @@ class MultiCable():
             lmb_cable = self.lmb.part(i+1, deepcopy=True)
             f_cable = self.f.part(i+1, deepcopy=True)
             # Alternative to facet normal from femorph
-            # from femorph import VolumeNormal
-            # normal = VolumeNormal(cable_mesh, [0], cable_facet, [16,17])
-            normal = FacetNormal(cable_mesh)("-") # Outwards pointing normal
+            from femorph import VolumeNormal
+            normal = VolumeNormal(cable_mesh, [0], cable_facet, [16,17])
+            # normal = FacetNormal(cable_mesh)("-") # Outwards pointing normal
             dJ_Surf = self.WeakCableShapeGradSurf(T_cable, adjT_cable,
                                                   lmb_cable, self.c, f_cable,
                                                   n=normal)
@@ -187,6 +187,7 @@ class MultiCable():
                              +normal[1]*dJ_Surf*dSc2
                              + Constant(0)*dx(domain=cable_mesh,
                                               subdomain_data=cable_subdomain))
+
 
             dJ.append(gradx)
             dJ.append(grady)

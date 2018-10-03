@@ -20,15 +20,15 @@ def compute_angles(cable_positions):
 
 lmb_metal = 205.      # Heat coefficient aluminium
 lmb_insulation = 0.03 # Heat coefficient of plastic
-lmb_air = 0.15        # Heat coefficient of brick
-c1 = numpy.array([-0.2, 0.45])
-c2 = numpy.array([-0.4, -0.3])
-c3 = numpy.array([0.3,-0.1])
+lmb_air = 0.33        # Heat coefficient of brick
+c1 = numpy.array([0, 0.45])
+c2 = numpy.array([-0.4, -0.15])
+c3 = numpy.array([0.2,-0.4])
 cable_positions = numpy.array([c1[0],c1[1],c2[0],c2[1],c3[0],c3[1]])
 compute_angles(cable_positions)
 
 scales = numpy.array([1,1,1])   
-sources = numpy.array([10,5,5])
+sources = numpy.array([2,0.5,0.5])
 
 from MultiCable import *
 from IpoptMultiCableSolver import *
@@ -44,12 +44,12 @@ for i in range(MC.multimesh.num_parts()):
 
 
 opt = MultiCableOptimization(3, scales, MC.eval_J, MC.eval_dJ)
-# opt.nlp.num_option('obj_scaling_factor',1e-2) 
-# opt.nlp.int_option('max_iter', 50)
-# opt.nlp.num_option('acceptable_tol', 1e-3)
-# opt.nlp.num_option('tol', 5e-4)
+opt.nlp.int_option('max_iter', 35)
+opt.nlp.num_option('tol', 1e-6)
 
 opt_sol = opt.solve(cable_positions)
+for i in range(MC.multimesh.num_parts()-1):
+    print("%.3e, %.3e" % (opt_sol[2*i], opt_sol[2*i+1]))
 compute_angles(opt_sol)
 MC.eval_J(opt_sol)
 
