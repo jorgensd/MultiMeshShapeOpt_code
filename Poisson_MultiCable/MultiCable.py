@@ -89,12 +89,13 @@ class MultiCable():
         """ The Riez representer of the shape-surface gradient at an interface
         """
         # ("-") are exterior quantitites, [ ]_{+-}=-jump( )
-        grad_tau_adjT = grad(adjT("-"))-dot(n,grad(adjT("-")))*n 
+        grad_tau_adjT = grad(adjT("-"))-dot(n,grad(adjT("-")))*n
         grad_tau_T = grad(T("-"))-dot(n,grad(T("-")))*n
         dJ = inner(grad_tau_T, grad_tau_adjT)*jump(lmb)\
              - adjT("-")*(jump(f)
              )\
-             - lmb("-")*dot(n,grad(adjT("-")))*jump(dot(n, grad(T)))
+             - lmb("-")*dot(n,grad(adjT("-")))*dot(n,jump(grad(T)))
+
         return -dJ
 
     
@@ -169,8 +170,10 @@ class MultiCable():
             adjT_cable = self.adjT.part(i+1, deepcopy=True)
             lmb_cable = self.lmb.part(i+1, deepcopy=True)
             f_cable = self.f.part(i+1, deepcopy=True)
-            from femorph import VolumeNormal
-            normal = VolumeNormal(cable_mesh, [0], cable_facet, [16,17])
+            # Alternative to facet normal from femorph
+            # from femorph import VolumeNormal
+            # normal = VolumeNormal(cable_mesh, [0], cable_facet, [16,17])
+            normal = FacetNormal(cable_mesh)("-") # Outwards pointing normal
             dJ_Surf = self.WeakCableShapeGradSurf(T_cable, adjT_cable,
                                                   lmb_cable, self.c, f_cable,
                                                   n=normal)
@@ -184,7 +187,7 @@ class MultiCable():
                              +normal[1]*dJ_Surf*dSc2
                              + Constant(0)*dx(domain=cable_mesh,
                                               subdomain_data=cable_subdomain))
-            
+
             dJ.append(gradx)
             dJ.append(grady)
         return numpy.array(dJ)
