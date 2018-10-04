@@ -115,6 +115,11 @@ class StokesSolver():
         """
         Save current velocity and pressure to file
         """
+        for dof in self.u.function_space().dofmap().inactive_dofs(self.multimesh,0):
+            self.u.vector()[dof]=np.nan
+        for dof in self.p.function_space().dofmap().inactive_dofs(self.multimesh,0):
+            self.p.vector()[dof]=np.nan
+
         for i in range(self.multimesh.num_parts()):
             self.outu[i] << self.u.part(i)
             self.outp[i] << self.p.part(i)
@@ -132,7 +137,9 @@ class StokesSolver():
     def ufl_J(self, u):
         return inner(grad(u),grad(u))*dX
     
-    def eval_J(self, angles):
+    def eval_J(self, angles, printing=True):
+        if printing:
+            print(['{:.2f}'.format(i) for i in angles])
         self.multimesh.build()
         self.update_mesh(angles)
         mf_0 = self.mfs[0]
@@ -181,7 +188,7 @@ class StokesSolver():
 
     def eval_dJ(self,angles):
 
-        self.eval_J(angles)
+        self.eval_J(angles, printing=False)
 
         dJ = np.zeros(self.N)
         for i in range(1,self.N+1):
@@ -263,12 +270,12 @@ if __name__ == "__main__":
     all_angles()
     exit(1)
     points = [Point(0.5,0.5)]#[Point(0.5,0.25), Point(0.75,0.52), Point(0.3,0.8)]
-    thetas = [0]#[90, 47, 32]
+    thetas = [90]#[90, 47, 32]
     inlet_str= "-A*(x[1]-x_l)*(x[1]-x_u)"
     inlet_data = [[Expression((inlet_str, "0"), x_l=0.1, x_u=0.4,
                                      A=250, degree=5), 1],
                          [Expression((inlet_str, "0"), x_l=0.7, x_u=0.85,
-                                     A=0, degree=5), 2]]
+                                     A=120, degree=5), 2]]
     # points = [Point(0.5,0.5)]
     # thetas = [63]
 

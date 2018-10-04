@@ -10,15 +10,15 @@ inlet1_marker = 2
 outlet_marker = 3
 obstacle_marker = 4
 wall_marker = 5
-inlet0 = [(0,0.1,0), (0,0.4,0)] # Coordinates of inlet
-inlet1 = [(0,0.7,0), (0,0.85,0)]
-outlet = [(0.8,1,0), (0.9,1,0)]
+inlet0 = [(0,0.15,0), (0,0.25,0)] # Coordinates of inlet
+inlet1 = [(0,0.73,0), (0,0.83,0)]
+outlet = [(0.75,1,0), (0.95,1,0)]
 
 L = 1
 H = 1
 c_x,c_y  = L/2, H/2
-r_x = 0.126157
-r_y = 0.06
+r_x = 0.08
+r_y = 0.04
 width_scale = 3 # Number of cells width of front  mesh w.r.t to background mesh size
 
 def background_mesh(res=0.025):
@@ -60,8 +60,8 @@ def background_mesh(res=0.025):
 
     # Create mesh
     (points, cells, point_data,
-     cell_data, field_data) = generate_mesh(geo, prune_z_0=True,
-                                            geo_filename="meshes/tmp.geo")
+     cell_data, field_data) = generate_mesh(geo, prune_z_0=True)#,
+    #geo_filename="meshes/tmp.geo")
 
     meshio.write("meshes/multimesh_0.xdmf", meshio.Mesh(
         points=points, cells={"triangle": cells["triangle"]}))
@@ -108,8 +108,9 @@ def front_mesh(res=0.025):
 
     # Generate mesh
     (points, cells, point_data,
-     cell_data, field_data) = generate_mesh(geo, prune_z_0=True,
-                                            geo_filename="meshes/test.geo")
+     cell_data, field_data) = generate_mesh(geo, prune_z_0=True)
+    #,
+    #                                       geo_filename="meshes/test.geo")
 
     # Save mesh and mesh-function to file
     meshio.write("meshes/multimesh_1.xdmf", meshio.Mesh(
