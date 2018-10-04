@@ -133,6 +133,7 @@ class StokesSolver():
         return inner(grad(u),grad(u))*dX
     
     def eval_J(self, angles):
+        print("Eval at: ", angles)
         self.multimesh.build()
         self.update_mesh(angles)
         mf_0 = self.mfs[0]
@@ -191,11 +192,77 @@ class StokesSolver():
             normal_i = FacetNormal(self.multimesh.part(i))
             dS_i = Measure("ds", domain=self.multimesh.part(i),
                            subdomain_data=mf_i)
-            dJ[i-1] = assemble(stokes_i*inner(normal_i, self.s[i-1])
+            dJ[i-1] = -assemble(stokes_i*inner(normal_i, self.s[i-1])
                                *dS_i(self.obstacle_marker))
-        return dJ
+        return 180./pi*dJ
+
+
+def all_angles():
+    # solve single rotation problem for all angles and compute gradient
+    import numpy as np
+    import os
+    os.system("mkdir -p figures")
+    angles = np.linspace(0,180,25)
+    points = [Point(0.5,0.5)]
+    thetas = [0]
+    inlet_str= "-A*(x[1]-x_l)*(x[1]-x_u)"
+    inlet_data = [[Expression((inlet_str, "0"), x_l=0.1, x_u=0.4,
+                                     A=250, degree=5), 1],
+                         [Expression((inlet_str, "0"), x_l=0.7, x_u=0.85,
+                                     A=0, degree=5), 2]]
+    pre = "meshes/"
+    meshes = [pre+"multimesh_0.xdmf"] +  [pre+"multimesh_1.xdmf"]*len(points)
+    mfs = [pre+"mf_0.xdmf"] + [pre+"mf_1.xdmf"]*len(points)
+    solver = StokesSolver(points, thetas, meshes, mfs, inlet_data)
+
+    Js = []
+    dJds = []
+    out0 = File("output/Stokes0_new.pvd")
+    out = File("output/Stokes_new.pvd")
+    minmax_theta = []
+    minmax_grad = []
+    i = 0
+    for theta in angles:
+        Js.append(solver.eval_J([theta]))
+        dJds.append(solver.eval_dJ([theta]))
+        if i >0 and dJds[-1]/dJds[-2] < 0:
+            print("Minmax found")
+            minmax_theta.append(angles[i-1])
+            minmax_theta.append(theta)
+            minmax_grad.append(dJds[-2])
+            minmax_grad.append(dJds[-1])
+            print(theta, Js[-1], dJds[-1],dJds[-2])
+        out0 << solver.u.part(0)
+        out << solver.u.part(1)
+        i+=1
+    print(angles[np.argmin(Js)], Js[np.argmin(Js)])
+    print(angles[np.argmin(np.abs(dJds))], dJds[np.argmin(np.abs(dJds))])
+
+    fig = plt.figure()
+    plt.plot(angles, Js, '-',color=plt.cm.coolwarm(0), linewidth=4)
+    plt.xticks(fontsize=28)
+    plt.yticks(fontsize=28)
+    plt.xlim(min(angles), max(angles))
+    plt.xlabel(r"$\theta$", fontsize=35)
+    plt.ylabel(r"$J(T(\theta)))$", fontsize=35,rotation=90)
+    plt.grid()
+    fig.set_size_inches((12, 8.5), forward=False)
+    plt.savefig("figures/MultiMeshObstacleAll.png",bbox_inches='tight',format='png', dpi=300)
+    fig2 = plt.figure()
+    plt.plot(angles, dJds, '-',color=plt.cm.coolwarm(0), linewidth=4)
+    plt.plot(minmax_theta, minmax_grad,"ro")
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.xlim(min(angles), max(angles))
+    plt.grid()
+    fig.set_size_inches((12, 8.5), forward=False)
+    plt.savefig("figures/MultiMeshGrad.png",
+                bbox_inches='tight',format='png', dpi=300)
+
 
 if __name__ == "__main__":
+    all_angles()
+    exit(1)
     points = [Point(0.5,0.5)]#[Point(0.5,0.25), Point(0.75,0.52), Point(0.3,0.8)]
     thetas = [0]#[90, 47, 32]
     inlet_str= "-A*(x[1]-x_l)*(x[1]-x_u)"

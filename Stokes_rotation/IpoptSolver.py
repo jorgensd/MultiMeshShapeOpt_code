@@ -26,8 +26,8 @@ class IpoptAngle():
         
     def solve_init(self, eval_J, eval_dJ):
         nvar = self.num_angles
-        low_var = -360*numpy.ones(nvar,dtype=float)
-        up_var = 360*numpy.ones(nvar, dtype=float)
+        low_var = -180*numpy.ones(nvar,dtype=float)
+        up_var = 180*numpy.ones(nvar, dtype=float)
 
 
         self.nlp = pyipopt.create(nvar,     # Number of controls
@@ -42,7 +42,6 @@ class IpoptAngle():
                                   lambda angle: eval_dJ(angle), # Obj. grad eval
                                   self.func_g,
                                   self.jac_g)
-        self.nlp.num_option('bound_relax_factor', 0)
 
     def solve(self, angle):
         return self.nlp.solve(angle)[0]
@@ -63,13 +62,13 @@ if __name__ == "__main__":
     mfs = [pre+"mf_0.xdmf"] + [pre+"mf_1.xdmf"]*len(points)
     solver = StokesSolver(points, thetas, meshes, mfs, inlet_data)
     # Save initial solution
-    solver.eval_J(thetas)
-    solver.save_state()
     optimizer = IpoptAngle(len(thetas),solver.eval_J, solver.eval_dJ)
     optimizer.nlp.int_option('max_iter',30)
     optimizer.nlp.num_option("tol", 1e-6)
     opt_theta = optimizer.solve(thetas)
 
+    solver.eval_J(thetas)
+    solver.save_state()
     print(opt_theta, solver.eval_J(opt_theta))
     # solve_final solution
     solver.save_state()
