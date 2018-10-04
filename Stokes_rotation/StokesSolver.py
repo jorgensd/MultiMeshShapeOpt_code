@@ -129,6 +129,8 @@ class StokesSolver():
             self.thetas[i-1] = angles[i-1]
         self.multimesh.build()
 
+    def ufl_J(self, u):
+        return inner(grad(u),grad(u))*dX
     
     def eval_J(self, angles):
         self.multimesh.build()
@@ -146,7 +148,7 @@ class StokesSolver():
         a = self.a_h(u, v, n, h) + self.b_h(v, p, n) + self.b_h(u, q, n)\
             + self.s_O(u, v) + self.s_C(u, p, v, q, h)
         L  = self.l_h(v, q, f) + self.l_C(v, q, f, h)
-
+        
         # Set inactive dofs
         for i in range(self.N):
             self.multimesh.auto_cover(0, self.points[i])
@@ -175,13 +177,27 @@ class StokesSolver():
         solve(A, self.w.vector(), b, "mumps")
         self.splitMMF()
 
+        return assemble_multimesh(self.ufl_J(self.u))
 
+    def eval_dJ(self,angles):
 
+        self.eval_J(angles)
 
+        dJ = np.zeros(self.N)
+        for i in range(1,self.N+1):
+            u_i = self.u.part(i, deepcopy=True)
+            stokes_i = inner(grad(u_i), grad(u_i))
+            mf_i = self.mfs[i]
+            normal_i = FacetNormal(self.multimesh.part(i))
+            dS_i = Measure("ds", domain=self.multimesh.part(i),
+                           subdomain_data=mf_i)
+            dJ[i-1] = assemble(stokes_i*inner(normal_i, self.s[i-1])
+                               *dS_i(self.obstacle_marker))
+        return dJ
 
 if __name__ == "__main__":
-    points = []#[Point(0.5,0.25), Point(0.75,0.52), Point(0.3,0.8)]
-    thetas = []#[90, 47, 32]
+    points = [Point(0.5,0.5)]#[Point(0.5,0.25), Point(0.75,0.52), Point(0.3,0.8)]
+    thetas = [0]#[90, 47, 32]
     inlet_str= "-A*(x[1]-x_l)*(x[1]-x_u)"
     inlet_data = [[Expression((inlet_str, "0"), x_l=0.1, x_u=0.4,
                                      A=250, degree=5), 1],
@@ -202,5 +218,6 @@ if __name__ == "__main__":
             plot(multimesh.part(i),color=colors[i])
         
 
-    ss.eval_J(thetas)
+    ss.eval_dJ(thetas)
+    embed()
     ss.save_state()
