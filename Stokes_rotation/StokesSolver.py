@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 class StokesSolver():
 
-    def __init__(self, points, thetas, mesh_names, facet_func_names):
+    def __init__(self, points, thetas, mesh_names, facet_func_names, inlets):
         """
         Initialize Stokes solver for objects located at "points"
         with orientation "thetas" with meshes from "mesh_names"
@@ -16,8 +16,13 @@ class StokesSolver():
             thetas list(float)        - The initial orientations
             mesh_names list(str)      - The mesh-filenames
             facet_func_names list(str)- The facet_func filnames
+            inlets dict               - Dictonary containing positions of inlets
+                                        as well as amplitude
         """
-        
+        self.inlets = inlets
+        self.outlet_marker = 3
+        self.obstacle_marker = 4
+        self.wall_marker = 5
         self.N = len(points)
         self.outu = [File("output/u_%d.pvd" %i) for i in range(self.N+1)]
         self.outp = [File("output/p_%d.pvd" %i) for i in range(self.N+1)]
@@ -95,21 +100,29 @@ class StokesSolver():
             + alpha/avg(h) * inner(jump(v), jump(w))*dI
 
     def splitMMF(self):
+        """
+        Split a mixed multimeshfunction into separate multimeshfunctions
+        """
         for i in range(self.multimesh.num_parts()):
             Vi = FunctionSpace(self.multimesh.part(i), self.V2)
             Pi = FunctionSpace(self.multimesh.part(i), self.S1)
-            ui, pi = self.w.part(0, deepcopy=True).split()
+            ui, pi = self.w.part(i, deepcopy=True).split()
 
             self.u.assign_part(i, interpolate(ui,Vi))
             self.p.assign_part(i, interpolate(pi,Pi))
 
     def save_state(self):
-        for i in range(self.N+1):
-            self.outp[i] << u.part(i)
-            self.outp[i] << u.part(i)
-
+        """
+        Save current velocity and pressure to file
+        """
+        for i in range(self.multimesh.num_parts()):
+            self.outu[i] << self.u.part(i)
+            self.outp[i] << self.p.part(i)
     
     def update_mesh(self, angles):
+        """
+        Rotate obstacles to angle specified in arrayx
+        """
         for i in range(1,self.N+1):
             self.meshes[i].rotate(angles[i-1]-self.thetas[i-1],
                                   2, self.points[i-1])
@@ -118,6 +131,7 @@ class StokesSolver():
 
     
     def eval_J(self, angles):
+        self.multimesh.build()
         self.update_mesh(angles)
         mf_0 = self.mfs[0]
         mfs = self.mfs[1:]
@@ -140,16 +154,19 @@ class StokesSolver():
         # Create boundary conditions
         inflow_value = Expression(("1.0", "0.0"),degree=1)
         outflow_value = Constant(0)
-        noslip_value = inflow_value
+        noslip_value =  Expression(("0.0", "0.0"), degree=2)
         obstacle_value = Expression(("0.0", "0.0"), degree=2)
         V = MultiMeshSubSpace(self.VQ, 0)
         Q = MultiMeshSubSpace(self.VQ, 1)
-        bc0 = MultiMeshDirichletBC(V, inflow_value,  mf_0, 1, 0)
-        bc1 = MultiMeshDirichletBC(V, noslip_value,  mf_0, 3, 0)
-        bcs = [bc0, bc1]
+        bcs = []
+        for inlet in self.inlets:
+            bcs.append(MultiMeshDirichletBC(V, inlet[0],  mf_0, inlet[1], 0))
+        bcs.append(MultiMeshDirichletBC(V, noslip_value,  mf_0,
+                                        self.wall_marker, 0))
+
         for i in range(1,self.N+1):
             bcs.append(MultiMeshDirichletBC(V, obstacle_value,
-                                            mfs[i-1], 2 ,i))
+                                            mfs[i-1], self.obstacle_marker ,i))
         # Assemble linear system, apply boundary conditions and solve
         A = assemble_multimesh(a)
         b = assemble_multimesh(L)
@@ -157,21 +174,33 @@ class StokesSolver():
         self.VQ.lock_inactive_dofs(A, b)
         solve(A, self.w.vector(), b, "mumps")
         self.splitMMF()
+
+
+
+
+
+if __name__ == "__main__":
+    points = []#[Point(0.5,0.25), Point(0.75,0.52), Point(0.3,0.8)]
+    thetas = []#[90, 47, 32]
+    inlet_str= "-A*(x[1]-x_l)*(x[1]-x_u)"
+    inlet_data = [[Expression((inlet_str, "0"), x_l=0.1, x_u=0.4,
+                                     A=250, degree=5), 1],
+                         [Expression((inlet_str, "0"), x_l=0.7, x_u=0.85,
+                                     A=0, degree=5), 2]]
+    # points = [Point(0.5,0.5)]
+    # thetas = [63]
+
+    pre = "meshes/"
+    meshes = [pre+"multimesh_0.xdmf"] +  [pre+"multimesh_1.xdmf"]*len(points)
+    mfs = [pre+"mf_0.xdmf"] + [pre+"mf_1.xdmf"]*len(points)
+    ss = StokesSolver(points, thetas, meshes, mfs, inlet_data)
+
+    
+    def plot_mm(multimesh):
+        colors = ["r","b","y","c"]
+        for i in range(1,multimesh.num_parts()):
+            plot(multimesh.part(i),color=colors[i])
         
-points = [Point(0.5,0.25), Point(0.75,0.52)]
-thetas = [90, 47]
-pre = "meshes/"
-meshes = [pre+"multimesh_0.xdmf", pre+"multimesh_1.xdmf",pre+"multimesh_1.xdmf"]
-mfs = [pre+"mf_0.xdmf", pre+"mf_1.xdmf",pre+"mf_1.xdmf"]
-ss = StokesSolver(points, thetas, meshes, mfs)
 
-
-def plot_mm(multimesh):
-    colors = ["r","b","y","c"]
-    for i in range(1,multimesh.num_parts()):
-        plot(multimesh.part(i),color=colors[i])
-
-
-ss.eval_J([0,0])
-ss.save_state()
-File("output/u0.pvd") << ss.u.part(0)
+    ss.eval_J(thetas)
+    ss.save_state()
