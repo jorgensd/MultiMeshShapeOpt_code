@@ -19,6 +19,9 @@ class StokesSolver():
             inlets dict               - Dictonary containing positions of inlets
                                         as well as amplitude
         """
+        self.J = 0
+        self.dJ = 0
+        self.opt_it = 0 # Optimization iteration
         self.inlets = inlets
         self.outlet_marker = 3
         self.obstacle_marker = 4
@@ -137,9 +140,9 @@ class StokesSolver():
     def ufl_J(self, u):
         return inner(grad(u),grad(u))*dX
     
-    def eval_J(self, angles, printing=True):
+    def eval_J(self, angles, printing=False):
         if printing:
-            print(['{:+3.2f}'.format(i) for i in angles])
+            print(", ".join(['{:2.8f}'.format(i).rjust(5) for i in angles]))
         self.multimesh.build()
         self.update_mesh(angles)
         mf_0 = self.mfs[0]
@@ -183,13 +186,13 @@ class StokesSolver():
         self.VQ.lock_inactive_dofs(A, b)
         solve(A, self.w.vector(), b, "mumps")
         self.splitMMF()
-
-        return assemble_multimesh(self.ufl_J(self.u))
+        self.J = assemble_multimesh(self.ufl_J(self.u)) 
+        return self.J
 
     def eval_dJ(self,angles):
 
-        self.eval_J(angles, printing=False)
-
+        self.J = self.eval_J(angles, printing=False)
+        
         dJ = np.zeros(self.N)
         for i in range(1,self.N+1):
             u_i = self.u.part(i, deepcopy=True)
@@ -200,9 +203,19 @@ class StokesSolver():
                            subdomain_data=mf_i)
             dJ[i-1] = -assemble(stokes_i*inner(normal_i, self.s[i-1])
                                *dS_i(self.obstacle_marker))
-        return 180./pi*dJ
+        self.dJ = 180./pi*dJ
+        return self.dJ
 
-
+    def callback(self,angles):
+        solver.eval_dJ(angles)
+        solver.save_state()
+        print("Iteration: %d" % self.opt_it)
+        self.opt_it += 1
+        print("J: %.5e" % self.J)
+        print("dJ:%.5e" % self.dJ)
+        print("Angles")
+        print(", ".join(['{:2.8f}'.format(i).rjust(5) for i in angles]))
+        
 def all_angles():
     # solve single rotation problem for all angles and compute gradient
     import numpy as np

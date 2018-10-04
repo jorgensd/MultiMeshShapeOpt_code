@@ -28,13 +28,13 @@ if __name__ == "__main__":
     print(init_angles)
     print("Initial J: %.2e" % J_init)
     solver.save_state()
-
     
     # Initialize optimizer
     from scipy.optimize import minimize
     opt_theta = minimize(solver.eval_J, thetas,
                          jac=solver.eval_dJ,
-                         options={"maxiter":10, "disp":True})
+                         options={"maxiter":10, "disp":True},
+                         callback=solver.callback)
     embed()
 
     # Save final solution
