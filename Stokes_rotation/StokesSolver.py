@@ -115,10 +115,10 @@ class StokesSolver():
         """
         Save current velocity and pressure to file
         """
-        for dof in self.u.function_space().dofmap().inactive_dofs(self.multimesh,0):
-            self.u.vector()[dof]=np.nan
-        for dof in self.p.function_space().dofmap().inactive_dofs(self.multimesh,0):
-            self.p.vector()[dof]=np.nan
+        # for dof in self.u.function_space().dofmap().inactive_dofs(self.multimesh,0):
+        #     self.u.vector()[dof]=np.nan
+        # for dof in self.p.function_space().dofmap().inactive_dofs(self.multimesh,0):
+        #     self.p.vector()[dof]=np.nan
 
         for i in range(self.multimesh.num_parts()):
             self.outu[i] << self.u.part(i)
