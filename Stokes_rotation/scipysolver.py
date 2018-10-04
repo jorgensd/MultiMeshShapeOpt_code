@@ -33,8 +33,9 @@ if __name__ == "__main__":
     from scipy.optimize import minimize
     opt_theta = minimize(solver.eval_J, thetas,
                          jac=solver.eval_dJ,
-                         options={"maxiter":10, "disp":True},
-                         callback=solver.callback)
+                         # method = 'Nelder-Mead',
+                         callback=solver.callback,
+                         options={"maxiter":100, "disp":True})
     embed()
 
     # Save final solution

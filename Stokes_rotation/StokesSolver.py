@@ -207,12 +207,13 @@ class StokesSolver():
         return self.dJ
 
     def callback(self,angles):
-        solver.eval_dJ(angles)
-        solver.save_state()
+        self.eval_dJ(angles)
+        self.save_state()
         print("Iteration: %d" % self.opt_it)
         self.opt_it += 1
         print("J: %.5e" % self.J)
-        print("dJ:%.5e" % self.dJ)
+        print("Gradients")
+        print(", ".join(['{:2.8f}'.format(i).rjust(5) for i in self.dJ]))
         print("Angles")
         print(", ".join(['{:2.8f}'.format(i).rjust(5) for i in angles]))
         
