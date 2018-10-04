@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class StokesSolver():
-
+    set_log_level(LogLevel.ERROR)
     def __init__(self, points, thetas, mesh_names, facet_func_names, inlets):
         """
         Initialize Stokes solver for objects located at "points"
