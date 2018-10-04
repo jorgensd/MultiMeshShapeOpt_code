@@ -139,7 +139,7 @@ class StokesSolver():
     
     def eval_J(self, angles, printing=True):
         if printing:
-            print(['{:.2f}'.format(i) for i in angles])
+            print(['{:+3.2f}'.format(i) for i in angles])
         self.multimesh.build()
         self.update_mesh(angles)
         mf_0 = self.mfs[0]
