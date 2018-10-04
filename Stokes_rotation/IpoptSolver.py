@@ -51,7 +51,7 @@ if __name__ == "__main__":
     from StokesSolver import *
     points = [Point(0.5,0.25), Point(0.75,0.52), Point(0.3,0.8)]
     init_angles = [90, 47, 32]
-    thetas = numpy.array([0], dtype=float)
+    thetas = numpy.array(init_angles, dtype=float)
     inlet_str= "-A*(x[1]-x_l)*(x[1]-x_u)"
     inlet_data = [[Expression((inlet_str, "0"), x_l=0.1, x_u=0.4,
                               A=250, degree=5), 1],

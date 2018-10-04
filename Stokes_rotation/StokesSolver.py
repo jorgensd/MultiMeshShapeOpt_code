@@ -133,7 +133,6 @@ class StokesSolver():
         return inner(grad(u),grad(u))*dX
     
     def eval_J(self, angles):
-        print("Eval at: ", angles)
         self.multimesh.build()
         self.update_mesh(angles)
         mf_0 = self.mfs[0]
