@@ -20,5 +20,5 @@ if __name__=="__main__":
         file.writelines( data )
  
     import os
-    os.system('trash meshes/cable.msh')
+    # os.system('trash meshes/cable.msh')
     os.system('make -C meshes')
