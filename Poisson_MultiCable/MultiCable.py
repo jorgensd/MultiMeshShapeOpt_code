@@ -3,7 +3,11 @@ import numpy
 
 class MultiCable():
     def __init__(self, scales, positions, lmb_core, lmb_iso, lmb_fill, fs):
+        self.J = 0
+        self.dJ = 0
         self.num_cables = len(scales)
+        self.outT = [File("output/T_%d.pvd" %i)
+                     for i in range(self.num_cables+1)]
         self.lmb_core = lmb_core
         self.lmb_iso = lmb_iso
         self.lmb_fill = lmb_fill
@@ -21,6 +25,10 @@ class MultiCable():
 
     def alpha_heat_transfer(self, T):
         return Constant(1.0)
+
+    def save_state(self):
+        for i in range(self.multimesh.num_parts()):
+            self.outT[i] << self.T.part(i)
         
     def init_multimesh(self,scales, positions):
         """
@@ -134,8 +142,8 @@ class MultiCable():
         self.T.vector()[:]=0
         self.V.lock_inactive_dofs(A, b)
         solve(A, self.T.vector(), b, 'lu')
-    
-        return assemble_multimesh(self.obj)
+        self.J = assemble_multimesh(self.obj)
+        return self.J
 
 
     # Evaluate the shape gradient
@@ -191,7 +199,19 @@ class MultiCable():
 
             dJ.append(gradx)
             dJ.append(grady)
-        return numpy.array(dJ)
+        self.dJ = numpy.array(dJ)
+        return self.dJ
+
+    def callback(self, positions):
+        self.eval_dJ(positons)
+        self.save_state()
+        print("Iteration: %d" % self.opt_it)
+        self.opt_it += 1
+        print("J: %.5e" % self.J)
+        print("Gradients")
+        print(", ".join(['{:2.8f}'.format(i).rjust(5) for i in self.dJ]))
+        print("Positions")
+        print(", ".join(['{:2.8f}'.format(i).rjust(5) for i in positions]))
 
     
 if __name__ == "__main__":
