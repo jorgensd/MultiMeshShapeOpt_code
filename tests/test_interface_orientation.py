@@ -13,15 +13,6 @@ from IPython import embed
 from pdb import set_trace
 import numpy
 
-def convergence_rates(E_values, eps_values):
-    from numpy import log
-    r = []
-    for i in range(1, len(eps_values)):
-        r.append(log(E_values[i]/E_values[i-1])/log(eps_values[i]/
-                                                    eps_values[i-1]))
-
-    print("Computed convergence rates: {}".format(r))
-    return r
 
 # Load meshes and mesh-functions used in the MultiMesh from file
 multimesh = MultiMesh()
@@ -62,10 +53,11 @@ def deformation_vector():
     s.assign_part(1,n1)
     return s
 
-Jsingle = assemble(T.part(1,deepcopy=True)*ds(subdomain_data=mfs[1],
-                                              subdomain_id=1))
+dI_single = Measure("ds", subdomain_data=mfs[1], subdomain_id=1)
+Jsingle = assemble(T.part(1,deepcopy=True)*dI_single)
 Jmulti = assemble_multimesh(T("-")*dI)
-print(Jsingle, Jmulti)
+# Check that interface integral restricted to top mesh is same as boundary
+# integral over the same boundary on a single mesh
 assert(numpy.isclose(Jsingle,Jmulti))
 
 
@@ -79,7 +71,23 @@ S = MultiMeshVectorFunctionSpace(multimesh, "CG", 1)
 s = TestFunction(S)
 n = FacetNormal(multimesh)
 dJdOmega = tan_div(s("-"), n("-"))*T("-")*dI
+dJ = assemble_multimesh(dJdOmega).get_local()
+s_mm = MultiMeshFunction(S)
+s_mm.vector()[:] = dJ
+s_mm_1 = s_mm.part(1, deepcopy=True)
 
-def JT(T):
-    return T*dI
-J = JT(T("-"))
+S_sm = VectorFunctionSpace(multimesh.part(1), "CG", 1)
+s_sm = TestFunction(S_sm)
+n_sm = FacetNormal(multimesh.part(1))
+dJdsingle = tan_div(s_sm, n_sm)*T.part(1,deepcopy=True)*dI_single
+dJ_sm = assemble(dJdsingle).get_local()
+# Verify tan_div 
+assert(numpy.allclose(s_mm_1.vector().get_local(), dJ_sm))
+
+# Verify sign of normal
+Jminus = assemble_multimesh(inner(s("-"), n("-"))*dI)
+Jminus_1 = MultiMeshFunction(S)
+Jminus_1.vector()[:] = Jminus
+Jminus_1 = Jminus_1.part(1,deepcopy=True)
+Jsingle = assemble(inner(s_sm, n_sm)*dI_single)
+assert(numpy.allclose(Jminus_1.vector().get_local(), Jsingle.get_local()))
