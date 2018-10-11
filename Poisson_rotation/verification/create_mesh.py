@@ -29,7 +29,7 @@ def single_mesh(res=0.025):
     obstacle = geometry.add_surface(obstacle_loop)
     
     rectangle = geometry.add_rectangle(0,L,0,H,0, res, holes=[obstacle_loop])
-    geometry.add_physical_surface(obstacle, label=13)
+    # geometry.add_physical_surface(obstacle, label=13)
     geometry.add_physical_surface(rectangle.surface,label=12)
     geometry.add_physical_line(obstacle_loop.lines, label=inner_marker)
     geometry.add_physical_line(rectangle.line_loop.lines, label=outer_marker)
