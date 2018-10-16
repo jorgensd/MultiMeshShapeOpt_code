@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from IPython import embed
 from pdb import set_trace
 import numpy
-# Verification of functional only consisting of an interface term
-# that does not couple the PDEs and lives on the top mesh
+# Verification of functional only consisting of interface terms from
+# both the top and bottom interface
 
 def convergence_rates(E_values, eps_values):
     from numpy import log
