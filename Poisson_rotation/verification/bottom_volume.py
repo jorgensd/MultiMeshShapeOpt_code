@@ -43,6 +43,7 @@ x1 = SpatialCoordinate(meshes[1])
 T = MultiMeshFunction(V)
 T.assign_part(0, project(cos(x0[0])*x0[1], FunctionSpace(meshes[0], "CG", 1)))
 T.assign_part(1, project(Constant(0), FunctionSpace(meshes[1], "CG", 1)))
+
 def deformation_vector():
     from femorph import VolumeNormal
     n1 = VolumeNormal(multimesh.part(1))
@@ -81,9 +82,6 @@ l = assemble_multimesh(L)
 S.lock_inactive_dofs(A,l)
 solve(A, s_bottom.vector(), l)
 
-plot(multimesh.part(1), color="r")
-plot(s_bottom.part(0))
-plt.show()
 # Compute gradient with bottom mesh vector
 dJds = dJds_.inner(s_bottom.vector())
 print(dJds)
