@@ -61,27 +61,43 @@ s = TestFunction(S)
 n = FacetNormal(multimesh)
 def JT(T):
     return T*dX
-
 J = JT(T)
-dJdOmega = div(s)*T*dX# + dot(s, grad(T))*dX#div(s("-"))*T("+")*dI + dot(s("-"), grad(T("+")))*dI
+
+dJdOmega = div(s)*T*dX + dot(s, grad(T))*dX
 dJds_ = assemble_multimesh(dJdOmega)
-print(max(dJds_.get_local()))
-epsilons = [0.1*0.5**i for i in range(5)]
+s_top = deformation_vector()
+s_bottom = MultiMeshFunction(S)
+
+# Project top deformation to bottom mesh
+s_b = TrialFunction(S)
+# LHS
+a = inner(s_b("+"), s("+")) * dI
+A = assemble_multimesh(a)
+# Make matrix invertible
+A.ident_zeros()
+# RHS (take top data down to bottom mesh
+L = inner(s_top("-"),s("+")) * dI
+l = assemble_multimesh(L)
+S.lock_inactive_dofs(A,l)
+solve(A, s_bottom.vector(), l)
+
+plot(multimesh.part(1), color="r")
+plot(s_bottom.part(0))
+plt.show()
+# Compute gradient with bottom mesh vector
+dJds = dJds_.inner(s_bottom.vector())
+print(dJds)
+epsilons = [0.01*0.5**i for i in range(5)]
 errors = {"0": [],"1": []}
 Js = [assemble_multimesh(J)]
 
 for eps in epsilons:
+    # Compute top deformation vector
     s_eps = deformation_vector()
-    s_eps_t = TrialFunction(S)
-    a, L = inner(s_eps_t("+"), s("+")) * dI, inner(s_eps("-"),s("+")) * dI
-    A = assemble_multimesh(a)
-    A.ident_zeros()
-    l = assemble_multimesh(L)
-    S.lock_inactive_dofs(A,l)
-    solve(A, s_eps.vector(), l)
-    embed()
+
+    # Scale movement and deform top mesh
     s_eps.vector()[:] *= eps
-    dJds = dJds_.inner(s_eps.vector())
+
     for i in range(2):
         ALE.move(multimesh.part(i), s_eps.part(i))
     multimesh.build()
@@ -89,7 +105,7 @@ for eps in epsilons:
     J_eps = assemble_multimesh(JT(T))
     Js.append(J_eps)
     errors["0"].append(abs(J_eps-Js[0]))
-    errors["1"].append(abs(J_eps-Js[0]-dJds))
+    errors["1"].append(abs(J_eps-Js[0]-eps*dJds))
     s_eps.vector()[:] *= -1
     for i in range(2):
         ALE.move(multimesh.part(i), s_eps.part(i))
