@@ -4,7 +4,7 @@ from IPython import embed
 from pdb import set_trace
 import numpy
 # Verification of functional only consisting of an interface term
-# that does not couple the PDEs and lives on the top mesh
+# that lives on the top mesh
 
 def convergence_rates(E_values, eps_values):
     from numpy import log
