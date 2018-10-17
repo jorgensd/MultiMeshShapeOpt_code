@@ -2,21 +2,23 @@ from matplotlib.pyplot import show
 from pdb import set_trace
 from IPython import embed
 from numpy import log
-from femorph import VolumeNormal
+# from femorph import VolumeNormal
 from dolfin import (assemble_multimesh,
+                    as_vector,
                     ALE,
                     Constant,
                     cpp,
                     DirichletBC,
+                    Function,
                     FunctionSpace,
                     Mesh, MeshValueCollection,
                     MultiMesh, MultiMeshFunction, MultiMeshFunctionSpace,
                     MultiMeshVectorFunctionSpace,
-                    Point, project, SpatialCoordinate,
+                    Point, plot, project, SpatialCoordinate,
                     VectorFunctionSpace,
                     sin, cos,
                     div, dot, grad, outer, inner, nabla_grad,
-                    dX, dI, dO,
+                    dX, dI, dO, dx,
                     TestFunction, TrialFunction,
                     solve,
                     XDMFFile)
@@ -46,14 +48,21 @@ multimesh.build()
 multimesh.auto_cover(0,Point(1.25, 0.875))
 
 def deformation_vector():
-    # Defines the deformation of the top mesh
-    n1 = VolumeNormal(multimesh.part(1))
-    bc = DirichletBC(VectorFunctionSpace(multimesh.part(1), "CG",1),
-                     Constant((0,0)), mfs[1],2)
-    bc.apply(n1.vector())
+    # n1 = VolumeNormal(multimesh.part(1))
+    x1 = SpatialCoordinate(multimesh.part(1))
+    n1 = as_vector((x1[1], x1[0]))
+    S_sm = VectorFunctionSpace(multimesh.part(1), "CG", 1)
+    bcs = [DirichletBC(S_sm, Constant((0,0)), mfs[1],2),
+           DirichletBC(S_sm, n1, mfs[1], 1)]
+
+    u,v = TrialFunction(S_sm), TestFunction(S_sm)
+    a = inner(grad(u),grad(v))*dx
+    l = inner(Constant((0.,0.)), v)*dx
+    n = Function(S_sm)
+    solve(a==l, n, bcs=bcs)
     S = MultiMeshVectorFunctionSpace(multimesh, "CG", 1)
     s = MultiMeshFunction(S)
-    s.assign_part(1,n1)
+    s.assign_part(1,n)
     return s
 
 def project_to_background(s_top):
@@ -95,6 +104,7 @@ lmb.assign_part(1, project(x1[0]*sin(x1[1]),
 # Create bilinear form and corresponding gradients
 
 a1 = inner(grad(T), grad(lmb))*dX
+
 # Classic shape derivative term top mesh
 da1_top =  div(s_top)*inner(grad(T), grad(lmb))*dX
 # Term stemming from grad(T)
@@ -112,13 +122,24 @@ da1_bottom -= inner(dot(nabla_grad(s_bottom), grad(T)), grad(lmb))*dX
 # Material derivative of background lmb
 da1_bottom -= inner(grad(T), dot(nabla_grad(s_bottom), grad(lmb)))*dX
 
-dJds = assemble_multimesh(da1_top + da1_bottom)
-J = a1
+J1 = inner(T,T)*dX
+dJ1_top =  div(s_top)*inner(T,T)*dX
+# Classic shape derivative term bottom mesh
+dJ1_bottom =  div(s_bottom)*inner(T, T)*dX
+# Material derivative of background T
+dJ1_bottom += 2*inner(dot(s_bottom, grad(T)), T)*dX
+
+
+dJds = assemble_multimesh(da1_top + da1_bottom
+                          + dJ1_top + dJ1_bottom)
+
+J = a1 + J1
+
 
 
 # Do a taylor test for deformation of the top mesh
 Js = [assemble_multimesh(J)]
-epsilons = [0.001*0.5**i for i in range(5)]
+epsilons = [0.01*0.5**i for i in range(5)]
 errors = {"0": [], "1": []}
 for eps in epsilons:
     s_eps = deformation_vector()
@@ -127,7 +148,7 @@ for eps in epsilons:
         ALE.move(multimesh.part(i), s_eps.part(i))
     multimesh.build()
     multimesh.auto_cover(0,Point(1.25, 0.875))
-    J_eps = assemble_multimesh(a1)
+    J_eps = assemble_multimesh(J)
     Js.append(J_eps)
     errors["0"].append(abs(J_eps-Js[0]))
     errors["1"].append(abs(J_eps-Js[0]-eps*dJds))
