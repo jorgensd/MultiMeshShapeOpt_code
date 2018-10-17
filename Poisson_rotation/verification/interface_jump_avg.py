@@ -43,6 +43,9 @@ x1 = SpatialCoordinate(meshes[1])
 T = MultiMeshFunction(V)
 T.assign_part(0, project(sin(x0[1]), FunctionSpace(meshes[0], "CG", degree)))
 T.assign_part(1, project(cos(x1[0])*x1[1], FunctionSpace(meshes[1], "CG", degree)))
+lmb = MultiMeshFunction(V)
+lmb.assign_part(0, project(cos(x0[1])*x0[0]*x0[0], FunctionSpace(meshes[0], "CG", degree)))
+lmb.assign_part(1, project(x1[0]*sin(x1[1]), FunctionSpace(meshes[1], "CG", degree)))
 
 def deformation_vector():
     from femorph import VolumeNormal
@@ -65,18 +68,19 @@ S = MultiMeshVectorFunctionSpace(multimesh, "CG", 1)
 s = TestFunction(S)
 n = FacetNormal(multimesh)
 def JT(T):
-    return inner(n("-"), (grad(T("-"))+grad(T("+"))))*(T("-")-T("+"))*dI
+    return dot(avg(grad(T)), jump(lmb, n))*dI
+#return 0.5*inner(n("-"), (grad(T("-"))+grad(T("+"))))*(lmb("-")-lmb("+"))*dI
 J = JT(T)
 
-dJdOmega = (inner(dn_mat(s("-"), n("-")), grad(T("-"))+grad(T("+")))*(T("-")-T("+"))*dI
+dJdOmega = 0.5*(inner(dn_mat(s("-"), n("-")), grad(T("-"))+grad(T("+")))*(lmb("-")-lmb("+"))*dI
             - inner(n("-"), dot(nabla_grad(s("-")),
                                 nabla_grad(T("-")) + nabla_grad(T("+"))))
-            *(T("-")-T("+"))*dI
+            *(lmb("-")-lmb("+"))*dI
             + inner(n("-"), grad(dot(s("-"), grad(T("+")))))
-            *(T("-")-T("+"))*dI
+            *(lmb("-")-lmb("+"))*dI
             + tan_div(s("-"), n("-"))*inner(n("-"),grad(T("-"))+grad(T("+")))
-            *(T("-")-T("+"))*dI
-            - inner(n("-"), grad(T("+"))+grad(T("-")))*dot(s("-"),grad(T("+")))*dI)
+            *(lmb("-")-lmb("+"))*dI
+            - inner(n("-"), grad(T("+"))+grad(T("-")))*dot(s("-"),grad(lmb("+")))*dI)
 
 
 dJds_ = assemble_multimesh(dJdOmega)
