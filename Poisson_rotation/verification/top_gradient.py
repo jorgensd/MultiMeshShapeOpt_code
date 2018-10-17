@@ -46,12 +46,18 @@ T.assign_part(1, project(cos(x1[0])*x1[1], FunctionSpace(meshes[1], "CG", 1)))
 def deformation_vector():
     from femorph import VolumeNormal
     n1 = VolumeNormal(multimesh.part(1))
-    bc = DirichletBC(VectorFunctionSpace(multimesh.part(1), "CG",1),
-                     Constant((0,0)), mfs[1],2)
-    bc.apply(n1.vector())
+    S_sm = VectorFunctionSpace(multimesh.part(1), "CG", 1)
+    bcs = [DirichletBC(S_sm, Constant((0,0)), mfs[1],2),
+           DirichletBC(S_sm, n1, mfs[1], 1)]
+
+    u,v = TrialFunction(S_sm), TestFunction(S_sm)
+    a = inner(grad(u),grad(v))*dx
+    l = inner(Constant((0.,0.)), v)*dx
+    n = Function(S_sm)
+    solve(a==l, n, bcs=bcs)
     S = MultiMeshVectorFunctionSpace(multimesh, "CG", 1)
     s = MultiMeshFunction(S)
-    s.assign_part(1,n1)
+    s.assign_part(1,n)
     return s
 
 
@@ -71,7 +77,7 @@ dJdOmega = (div(s)*inner(grad(T),grad(T))*dX
             -2*inner(dot(grad(s),grad(T)), grad(T))*dX)
 dJds_ = assemble_multimesh(dJdOmega)
 print(max(dJds_.get_local()))
-epsilons = [0.01*0.5**i for i in range(5)]
+epsilons = [0.005*0.5**i for i in range(5)]
 errors = {"0": [],"1": []}
 Js = [assemble_multimesh(J)]
 for eps in epsilons:
