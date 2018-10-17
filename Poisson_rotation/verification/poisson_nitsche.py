@@ -97,7 +97,7 @@ T = MultiMeshFunction(V)
 T.assign_part(0, project(sin(x0[1]), FunctionSpace(meshes[0], "CG", degree)))
 T.assign_part(1, project(cos(x1[0])*x1[1], FunctionSpace(meshes[1], "CG", degree)))
 lmb = MultiMeshFunction(V)
-lmb.assign_part(0, project(cos(x0[1])*x0[0]*x0[0],
+lmb.assign_part(0, project(cos(x0[1])*x0[0],
                            FunctionSpace(meshes[0], "CG", degree)))
 lmb.assign_part(1, project(x1[0]*sin(x1[1]),
                            FunctionSpace(meshes[1], "CG", degree)))
@@ -105,8 +105,8 @@ lmb.assign_part(1, project(x1[0]*sin(x1[1]),
 
 # Create bilinear form and corresponding gradients
 
+#----------------------------------------------------------------------------
 a1 = inner(grad(T), grad(lmb))*dX
-
 # Classic shape derivative term top mesh
 da1_top =  div(s_top)*inner(grad(T), grad(lmb))*dX
 # Term stemming from grad(T)
@@ -123,7 +123,7 @@ da1_bottom += inner(grad(T), grad(dot(s_bottom, grad(lmb))))*dX
 da1_bottom -= inner(dot(nabla_grad(s_bottom), grad(T)), grad(lmb))*dX
 # Material derivative of background lmb
 da1_bottom -= inner(grad(T), dot(nabla_grad(s_bottom), grad(lmb)))*dX
-
+#----------------------------------------------------------------------------
 a2 = dot(avg(grad(T)), jump(lmb, n))*dI
 # Classic shape derivative at interface
 da2 = 0.5*tan_div(s_top("-"), n("-"))*inner(n("-"),grad(T("-"))+grad(T("+")))\
@@ -139,8 +139,24 @@ da2 -= 0.5*inner(n("-"), dot(nabla_grad(s_top("-")),
 da2 += 0.5*inner(n("-"), grad(dot(s_top("-"), grad(T("+")))))*(lmb("-")-lmb("+"))*dI
 # Material derivative of background lmb
 da2 -= 0.5*inner(n("-"), grad(T("+"))+grad(T("-")))*dot(s_top("-"),grad(lmb("+")))*dI
-
-
+#-----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+a3 = dot(avg(grad(lmb)), jump(T, n))*dI
+# Classic shape derivative at interface
+da3 = 0.5*tan_div(s_top("-"), n("-"))*inner(n("-"),grad(lmb("-"))+grad(lmb("+")))\
+      *(T("-")-T("+"))*dI
+# Due to normal variation
+da3 += 0.5*inner(dn_mat(s_top("-"), n("-")), grad(lmb("-")) + grad(lmb("+")))*\
+      (T("-")-T("+"))*dI
+# Due to grad(lmb)
+da3 -= 0.5*inner(n("-"), dot(nabla_grad(s_top("-")),
+                         nabla_grad(lmb("-")) + nabla_grad(lmb("+")))
+             *(T("-")-T("+")))*dI
+# Material derivative of background grad(lmb)
+da3 += 0.5*inner(n("-"), grad(dot(s_top("-"), grad(lmb("+")))))*(T("-")-T("+"))*dI
+# Material derivative of background T
+da3 -= 0.5*inner(n("-"), grad(lmb("+"))+grad(lmb("-")))*dot(s_top("-"),grad(T("+")))*dI
+#-----------------------------------------------------------------------------
 J1 = inner(T,T)*dX
 dJ1_top =  div(s_top)*inner(T,T)*dX
 # Classic shape derivative term bottom mesh
@@ -148,16 +164,16 @@ dJ1_bottom =  div(s_bottom)*inner(T, T)*dX
 # Material derivative of background T
 dJ1_bottom += 2*inner(dot(s_bottom, grad(T)), T)*dX
 
-J = a1 + J1 + a2
+J = a1 + J1 + a2 + a3
 dJds = assemble_multimesh(da1_top + da1_bottom
-                          + dJ1_top + dJ1_bottom + da2)
+                          + dJ1_top + dJ1_bottom + da2+ da3)
 
 
 
 
 # Do a taylor test for deformation of the top mesh
 Js = [assemble_multimesh(J)]
-epsilons = [0.01*0.5**i for i in range(5)]
+epsilons = [0.005*0.5**i for i in range(5)]
 errors = {"0": [], "1": []}
 for eps in epsilons:
     s_eps = deformation_vector()
