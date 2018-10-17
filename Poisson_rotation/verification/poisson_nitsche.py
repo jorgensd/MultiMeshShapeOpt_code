@@ -157,6 +157,15 @@ da3 += 0.5*inner(n("-"), grad(dot(s_top("-"), grad(lmb("+")))))*(T("-")-T("+"))*
 # Material derivative of background T
 da3 -= 0.5*inner(n("-"), grad(lmb("+"))+grad(lmb("-")))*dot(s_top("-"),grad(T("+")))*dI
 #-----------------------------------------------------------------------------
+alpha = 4
+a4 = alpha*inner(jump(T), jump(lmb))*dI
+# Classic shape derivative term
+da4 = tan_div(s_top("-"), n("-"))*alpha*inner(jump(T), jump(lmb))*dI
+# Material derivative of background T
+da4 += alpha*inner(dot(s_top("-"), grad(T("+"))), jump(lmb))*dI
+# Material derivative of background lmb
+da4 += alpha*inner(jump(T), dot(s_top("-"), grad(lmb("+"))))*dI
+#-----------------------------------------------------------------------------
 J1 = inner(T,T)*dX
 dJ1_top =  div(s_top)*inner(T,T)*dX
 # Classic shape derivative term bottom mesh
@@ -164,9 +173,9 @@ dJ1_bottom =  div(s_bottom)*inner(T, T)*dX
 # Material derivative of background T
 dJ1_bottom += 2*inner(dot(s_bottom, grad(T)), T)*dX
 
-J = a1 + J1 + a2 + a3
+J = a1 + J1 + a2 + a3 + a4
 dJds = assemble_multimesh(da1_top + da1_bottom
-                          + dJ1_top + dJ1_bottom + da2+ da3)
+                          + dJ1_top + dJ1_bottom + da2+ da3 + da4)
 
 
 
