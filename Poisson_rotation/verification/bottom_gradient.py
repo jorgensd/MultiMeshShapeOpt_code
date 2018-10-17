@@ -33,7 +33,8 @@ for i in range(2):
 
 multimesh.build()
 multimesh.auto_cover(0,Point(1.25, 0.875))
-degree=3
+# Note: fails for degree=1 due to the fact that then grad(dot(s,grad(T)))=0
+degree=2
 V = MultiMeshFunctionSpace(multimesh, "CG", degree)
 mf_0 = mfs[0]
 mf_1 = mfs[1]
