@@ -9,6 +9,7 @@ from dolfin import (assemble_multimesh,
                     Constant,
                     cpp,
                     DirichletBC,
+                    FacetNormal,
                     Function,
                     FunctionSpace,
                     Mesh, MeshValueCollection,
@@ -17,7 +18,7 @@ from dolfin import (assemble_multimesh,
                     Point, plot, project, SpatialCoordinate,
                     VectorFunctionSpace,
                     sin, cos,
-                    div, dot, grad, outer, inner, nabla_grad,
+                    div, dot, grad, outer, inner, nabla_grad, avg,jump,
                     dX, dI, dO, dx,
                     TestFunction, TrialFunction,
                     solve,
@@ -80,6 +81,7 @@ def project_to_background(s_top):
     solve(A, s_back.vector(), L)
     return s_back
 
+n = FacetNormal(multimesh)
 s_top = deformation_vector()
 s_bottom = project_to_background(s_top)
 
@@ -122,6 +124,23 @@ da1_bottom -= inner(dot(nabla_grad(s_bottom), grad(T)), grad(lmb))*dX
 # Material derivative of background lmb
 da1_bottom -= inner(grad(T), dot(nabla_grad(s_bottom), grad(lmb)))*dX
 
+a2 = dot(avg(grad(T)), jump(lmb, n))*dI
+# Classic shape derivative at interface
+da2 = 0.5*tan_div(s_top("-"), n("-"))*inner(n("-"),grad(T("-"))+grad(T("+")))\
+      *(lmb("-")-lmb("+"))*dI
+# Due to normal variation
+da2 += 0.5*inner(dn_mat(s_top("-"), n("-")), grad(T("-")) + grad(T("+")))*\
+      (lmb("-")-lmb("+"))*dI
+# Due to grad(T)
+da2 -= 0.5*inner(n("-"), dot(nabla_grad(s_top("-")),
+                         nabla_grad(T("-")) + nabla_grad(T("+")))
+             *(lmb("-")-lmb("+")))*dI
+# Material derivative of background grad(T)
+da2 += 0.5*inner(n("-"), grad(dot(s_top("-"), grad(T("+")))))*(lmb("-")-lmb("+"))*dI
+# Material derivative of background lmb
+da2 -= 0.5*inner(n("-"), grad(T("+"))+grad(T("-")))*dot(s_top("-"),grad(lmb("+")))*dI
+
+
 J1 = inner(T,T)*dX
 dJ1_top =  div(s_top)*inner(T,T)*dX
 # Classic shape derivative term bottom mesh
@@ -129,11 +148,10 @@ dJ1_bottom =  div(s_bottom)*inner(T, T)*dX
 # Material derivative of background T
 dJ1_bottom += 2*inner(dot(s_bottom, grad(T)), T)*dX
 
-
+J = a1 + J1 + a2
 dJds = assemble_multimesh(da1_top + da1_bottom
-                          + dJ1_top + dJ1_bottom)
+                          + dJ1_top + dJ1_bottom + da2)
 
-J = a1 + J1
 
 
 
