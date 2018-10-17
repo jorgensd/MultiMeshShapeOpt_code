@@ -71,7 +71,7 @@ dJdOmega = (div(s)*inner(grad(T),grad(T))*dX
             -2*inner(dot(grad(s),grad(T)), grad(T))*dX)
 dJds_ = assemble_multimesh(dJdOmega)
 print(max(dJds_.get_local()))
-epsilons = [0.001*0.5**i for i in range(5)]
+epsilons = [0.01*0.5**i for i in range(5)]
 errors = {"0": [],"1": []}
 Js = [assemble_multimesh(J)]
 for eps in epsilons:
