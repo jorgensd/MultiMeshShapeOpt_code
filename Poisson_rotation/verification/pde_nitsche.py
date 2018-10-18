@@ -18,7 +18,7 @@ from dolfin import (assemble_multimesh,
                     MultiMeshVectorFunctionSpace, MultiMeshDirichletBC,
                     Point, plot, project, SpatialCoordinate,
                     VectorFunctionSpace,
-                    sin, cos,
+                    sin, cos, pi,
                     div, dot, grad, outer, inner, nabla_grad, avg,jump,
                     dX, dI, dO, dx,
                     TestFunction, TrialFunction,
@@ -48,9 +48,13 @@ for i in range(2):
     multimesh.add(mesh_i)
 multimesh.build()
 multimesh.auto_cover(0,Point(1.25, 0.875))
+# Create Spatial Coordinates for each mesh
+x0 = SpatialCoordinate(meshes[0])
+x1 = SpatialCoordinate(meshes[1])
+
 
 def deformation_vector():
-    n1 = VolumeNormal(multimesh.part(1))
+    n1 = (1+sin(x1[1]))*VolumeNormal(multimesh.part(1))
     # x1 = SpatialCoordinate(multimesh.part(1))
     # n1 = as_vector((x1[1], x1[0]))
     S_sm = VectorFunctionSpace(multimesh.part(1), "CG", 1)
@@ -87,22 +91,19 @@ n = FacetNormal(multimesh)
 s_top = deformation_vector()
 s_bottom = project_to_background(s_top)
 
-# Create Spatial Coordinates for each mesh
-x0 = SpatialCoordinate(meshes[0])
-x1 = SpatialCoordinate(meshes[1])
-
 degree=2
 V = MultiMeshFunctionSpace(multimesh, "CG", degree)
 # Assign a function to each mesh, such that T and lmb are discontinuous at the
 # interface Gamma
 T = MultiMeshFunction(V)
-T.assign_part(0, project(sin(x0[1]), FunctionSpace(meshes[0], "CG", degree)))
-T.assign_part(1, project(cos(x1[0])*x1[1], FunctionSpace(meshes[1], "CG", degree)))
 lmb = MultiMeshFunction(V)
-lmb.assign_part(0, project(cos(x0[1])*x0[0],
-                           FunctionSpace(meshes[0], "CG", degree)))
-lmb.assign_part(1, project(x1[0]*sin(x1[1]),
-                           FunctionSpace(meshes[1], "CG", degree)))
+
+# T.assign_part(0, project(sin(x0[1]), FunctionSpace(meshes[0], "CG", degree)))
+# T.assign_part(1, project(cos(x1[0])*x1[1], FunctionSpace(meshes[1], "CG", degree)))
+# lmb.assign_part(0, project(cos(x0[1])*x0[0],
+#                            FunctionSpace(meshes[0], "CG", degree)))
+# lmb.assign_part(1, project(x1[0]*sin(x1[1]),
+#                            FunctionSpace(meshes[1], "CG", degree)))
 
 #----------------------------------------------------------------------------
 # Create corresponding gradients
@@ -255,6 +256,4 @@ rates0 = convergence_rates(errors["0"], epsilons)
 rates1 = convergence_rates(errors["1"], epsilons)
 assert(sum(rates0)/len(rates0)>0.95)
 assert(sum(rates1)/len(rates1)>1.95)
-print(rates0)
-print(rates1)
-print(sum(rates1)/len(rates1))
+
