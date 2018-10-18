@@ -54,7 +54,7 @@ x1 = SpatialCoordinate(meshes[1])
 
 
 def deformation_vector():
-    n1 = (1+sin(x1[1]))*VolumeNormal(multimesh.part(1))
+    n1 = (1+cos(2*pi*x1[0]))*VolumeNormal(multimesh.part(1))
     # x1 = SpatialCoordinate(multimesh.part(1))
     # n1 = as_vector((x1[1], x1[0]))
     S_sm = VectorFunctionSpace(multimesh.part(1), "CG", 1)
@@ -93,86 +93,19 @@ s_bottom = project_to_background(s_top)
 
 degree=2
 V = MultiMeshFunctionSpace(multimesh, "CG", degree)
+
 # Assign a function to each mesh, such that T and lmb are discontinuous at the
 # interface Gamma
 T = MultiMeshFunction(V)
 lmb = MultiMeshFunction(V)
 
-# T.assign_part(0, project(sin(x0[1]), FunctionSpace(meshes[0], "CG", degree)))
-# T.assign_part(1, project(cos(x1[0])*x1[1], FunctionSpace(meshes[1], "CG", degree)))
-# lmb.assign_part(0, project(cos(x0[1])*x0[0],
-#                            FunctionSpace(meshes[0], "CG", degree)))
-# lmb.assign_part(1, project(x1[0]*sin(x1[1]),
-#                            FunctionSpace(meshes[1], "CG", degree)))
-
-#----------------------------------------------------------------------------
-# Create corresponding gradients
-#----------------------------------------------------------------------------
-a1 = inner(grad(T), grad(lmb))*dX
-# Classic shape derivative term top mesh
-da1_top =  div(s_top)*inner(grad(T), grad(lmb))*dX
-# Term stemming from grad(T)
-da1_top -= inner(dot(nabla_grad(s_top), nabla_grad(T)), nabla_grad(lmb))*dX
-# Term stemming from grad(lmb)
-da1_top -= inner(grad(T), dot(nabla_grad(s_top), nabla_grad(lmb)))*dX
-# Classic shape derivative term bottom mesh
-da1_bottom =  div(s_bottom)*inner(grad(T), grad(lmb))*dX
-# Term stemming from grad(T)
-#da1_bottom += inner(grad(dot(s_bottom, grad(T))), grad(lmb))*dX
-# Term stemming from grad(lmb)
-#da1_bottom += inner(grad(T), grad(dot(s_bottom, grad(lmb))))*dX
-# Material derivative of background T
-da1_bottom -= inner(dot(nabla_grad(s_bottom), nabla_grad(T)), nabla_grad(lmb))*dX
-# Material derivative of background lmb
-da1_bottom -= inner(nabla_grad(T), dot(nabla_grad(s_bottom), nabla_grad(lmb)))*dX
-#----------------------------------------------------------------------------
-a2 = -dot(avg(grad(T)), jump(lmb, n))*dI
-# Classic shape derivative at interface
-da2 = -0.5*tan_div(s_top("-"), n("-"))*inner(n("-"),grad(T("-"))+grad(T("+")))\
-      *(lmb("-")-lmb("+"))*dI
-# Due to normal variation
-da2 -= 0.5*inner(dn_mat(s_top("-"), n("-")), grad(T("-")) + grad(T("+")))*\
-      (lmb("-")-lmb("+"))*dI
-# Due to grad(T)
-da2 += 0.5*inner(n("-"), dot(nabla_grad(s_top("-")),
-                         nabla_grad(T("-")) + nabla_grad(T("+")))
-             *(lmb("-")-lmb("+")))*dI
-# Material derivative of background grad(T)
-#da2 -= 0.5*inner(n("-"), grad(dot(s_top("-"), grad(T("+")))))*(lmb("-")-lmb("+"))*dI
-# Material derivative of background lmb
-#da2 += 0.5*inner(n("-"), grad(T("+"))+grad(T("-")))*dot(s_top("-"),grad(lmb("+")))*dI
-#-----------------------------------------------------------------------------
-a3 = -dot(avg(grad(lmb)), jump(T, n))*dI
-# Classic shape derivative at interface
-da3 = -0.5*tan_div(s_top("-"), n("-"))*inner(n("-"),grad(lmb("-"))+grad(lmb("+")))\
-      *(T("-")-T("+"))*dI
-# Due to normal variation
-da3 -= 0.5*inner(dn_mat(s_top("-"), n("-")), grad(lmb("-")) + grad(lmb("+")))*\
-      (T("-")-T("+"))*dI
-# Due to grad(lmb)
-da3 += 0.5*inner(n("-"), dot(nabla_grad(s_top("-")),
-                         nabla_grad(lmb("-")) + nabla_grad(lmb("+")))
-             *(T("-")-T("+")))*dI
-# Material derivative of background grad(lmb)
-#da3 -= 0.5*inner(n("-"), grad(dot(s_top("-"), grad(lmb("+")))))*(T("-")-T("+"))*dI
-# Material derivative of background T
-#da3 += 0.5*inner(n("-"), grad(lmb("+"))+grad(lmb("-")))*dot(s_top("-"),grad(T("+")))*dI
-#-----------------------------------------------------------------------------
+# Terms for variational form
 alpha = 4
+a1 = inner(grad(T), grad(lmb))*dX
+a2 = -dot(avg(grad(T)), jump(lmb, n))*dI
+a3 = -dot(avg(grad(lmb)), jump(T, n))*dI
 a4 = alpha*inner(jump(T), jump(lmb))*dI
-# Classic shape derivative term
-da4 = tan_div(s_top("-"), n("-"))*alpha*inner(jump(T), jump(lmb))*dI
-# Material derivative of background T
-#da4 += alpha*inner(dot(s_top("-"), grad(T("+"))), jump(lmb))*dI
-# Material derivative of background lmb
-#da4 += alpha*inner(jump(T), dot(s_top("-"), grad(lmb("+"))))*dI
-#-----------------------------------------------------------------------------
 J1 = inner(T,T)*dX
-dJ1_top =  div(s_top)*inner(T,T)*dX
-# Classic shape derivative term bottom mesh
-dJ1_bottom =  div(s_bottom)*inner(T, T)*dX
-# Material derivative of background T
-#dJ1_bottom += 2*inner(dot(s_bottom, grad(T)), T)*dX
 
 def solve_state():
     a = a1+a2+a3+a4
@@ -197,17 +130,92 @@ def solve_adjoint():
            MultiMeshDirichletBC(V, Constant(0), mfs[1], 2, 1)]
     [bc.apply(a, L) for bc in bcs]
     V.lock_inactive_dofs(a, L)
-
     solve(a, lmb.vector(), L)
-
 solve_state()
-solve_adjoint()
-J = J1
+J = a1 + J1 + a2 + a3 + a4
+
+
+
+# T.assign_part(0, project(x0[0]-2.0, FunctionSpace(meshes[0], "CG", degree)))
+# T.assign_part(1, project(x1[1]+(x1[0]-0.2)*x1[1], FunctionSpace(meshes[1], "CG", degree)))
+# lmb.assign_part(0, project(cos(x0[1])*x0[0],
+#                            FunctionSpace(meshes[0], "CG", degree)))
+# lmb.assign_part(1, project(x1[0]*sin(x1[1]),
+#                            FunctionSpace(meshes[1], "CG", degree)))
+
+#----------------------------------------------------------------------------
+# Create corresponding gradients
+#----------------------------------------------------------------------------
+# Classic shape derivative term top mesh
+da1_top =  div(s_top)*inner(grad(T), grad(lmb))*dX
+# Term stemming from grad(T)
+da1_top -= inner(dot(nabla_grad(s_top), nabla_grad(T)), nabla_grad(lmb))*dX
+# Term stemming from grad(lmb)
+da1_top -= inner(grad(T), dot(nabla_grad(s_top), nabla_grad(lmb)))*dX
+# Classic shape derivative term bottom mesh
+da1_bottom =  div(s_bottom)*inner(grad(T), grad(lmb))*dX
+# Term stemming from grad(T)
+da1_bottom += inner(grad(dot(s_bottom, grad(T))), grad(lmb))*dX
+# Term stemming from grad(lmb)
+da1_bottom += inner(grad(T), grad(dot(s_bottom, grad(lmb))))*dX
+# Material derivative of background T
+da1_bottom -= inner(dot(nabla_grad(s_bottom), nabla_grad(T)), nabla_grad(lmb))*dX
+# Material derivative of background lmb
+da1_bottom -= inner(nabla_grad(T), dot(nabla_grad(s_bottom), nabla_grad(lmb)))*dX
+#----------------------------------------------------------------------------
+# Classic shape derivative at interface
+da2 = -0.5*tan_div(s_top("-"), n("-"))*inner(n("-"),grad(T("-"))+grad(T("+")))\
+      *(lmb("-")-lmb("+"))*dI
+# Due to normal variation
+da2 -= 0.5*inner(dn_mat(s_top("-"), n("-")), grad(T("-")) + grad(T("+")))*\
+      (lmb("-")-lmb("+"))*dI
+# Due to grad(T)
+da2 += 0.5*inner(n("-"), dot(nabla_grad(s_top("-")),
+                         nabla_grad(T("-")) + nabla_grad(T("+")))
+             *(lmb("-")-lmb("+")))*dI
+# Material derivative of background grad(T)
+da2 -= 0.5*inner(n("-"), grad(dot(s_top("-"), grad(T("+")))))*(lmb("-")-lmb("+"))*dI
+# Material derivative of background lmb
+da2 += 0.5*inner(n("-"), grad(T("+"))+grad(T("-")))*dot(s_top("-"),grad(lmb("+")))*dI
+#-----------------------------------------------------------------------------
+# Classic shape derivative at interface
+da3 = -0.5*tan_div(s_top("-"), n("-"))*inner(n("-"),grad(lmb("-"))+grad(lmb("+")))\
+      *(T("-")-T("+"))*dI
+# Due to normal variation
+da3 -= 0.5*inner(dn_mat(s_top("-"), n("-")), grad(lmb("-")) + grad(lmb("+")))*\
+      (T("-")-T("+"))*dI
+# Due to grad(lmb)
+da3 += 0.5*inner(n("-"), dot(nabla_grad(s_top("-")),
+                         nabla_grad(lmb("-")) + nabla_grad(lmb("+")))
+             *(T("-")-T("+")))*dI
+# Material derivative of background grad(lmb)
+da3 -= 0.5*inner(n("-"), grad(dot(s_top("-"), grad(lmb("+")))))*(T("-")-T("+"))*dI
+# Material derivative of background T
+da3 += 0.5*inner(n("-"), grad(lmb("+"))+grad(lmb("-")))*dot(s_top("-"),grad(T("+")))*dI
+#-----------------------------------------------------------------------------
+# Classic shape derivative term
+da4 = tan_div(s_top("-"), n("-"))*alpha*inner(jump(T), jump(lmb))*dI
+# Material derivative of background T
+da4 += alpha*inner(dot(s_top("-"), grad(T("+"))), jump(lmb))*dI
+# Material derivative of background lmb
+da4 += alpha*inner(jump(T), dot(s_top("-"), grad(lmb("+"))))*dI
+#-----------------------------------------------------------------------------
+dJ1_top =  div(s_top)*inner(T,T)*dX
+# Classic shape derivative term bottom mesh
+dJ1_bottom =  div(s_bottom)*inner(T, T)*dX
+# Material derivative of background T
+dJ1_bottom += 2*inner(dot(s_bottom, grad(T)), T)*dX
+
+# solve_state()
+# solve_adjoint()
+# J = J1
 Ts = [File("output/T%d.pvd" %i) for i in range(multimesh.num_parts())]
+lmbs = [File("output/lmb%d.pvd" %i) for i in range(multimesh.num_parts())]
+
 for i in range(multimesh.num_parts()):
     Ts[i] << T.part(i)
+    lmbs[i] << lmb.part(i)
 
-# J = a1 + J1 + a2 + a3 + a4
 dJds = assemble_multimesh(da1_top + da1_bottom
                           + dJ1_top + dJ1_bottom + da2+ da3 + da4)
 
@@ -216,7 +224,7 @@ dJds = assemble_multimesh(da1_top + da1_bottom
 
 # Do a taylor test for deformation of the top mesh
 Js = [assemble_multimesh(J)]
-epsilons = [0.05*0.5**i for i in range(5)]
+epsilons = [0.01*0.5**i for i in range(5)]
 errors = {"0": [], "1": []}
 
 for eps in epsilons:
@@ -227,9 +235,10 @@ for eps in epsilons:
         ALE.move(multimesh.part(i), s_eps.part(i))
     multimesh.build()
     multimesh.auto_cover(0,Point(1.25, 0.875))
-    solve_state()
+    #solve_state()
     for i in range(multimesh.num_parts()):
         Ts[i] << T.part(i)
+        lmbs[i] << lmb.part(i)
     J_eps = assemble_multimesh(J)
     Js.append(J_eps)
     errors["0"].append(abs(J_eps-Js[0]))
