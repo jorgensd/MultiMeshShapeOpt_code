@@ -6,13 +6,15 @@ from femorph import VolumeNormal
 from ufl import replace
 from dolfin import (assemble_multimesh,
                     as_vector,
-                    ALE,
+                    ALE, Circumradius,
                     Constant,
                     cpp,
                     DirichletBC,
+                    Expression,
                     FacetNormal,
                     Function,
                     FunctionSpace,
+                    interpolate,
                     Mesh, MeshValueCollection,
                     MultiMesh, MultiMeshFunction, MultiMeshFunctionSpace,
                     MultiMeshVectorFunctionSpace, MultiMeshDirichletBC,
@@ -54,14 +56,14 @@ x1 = SpatialCoordinate(meshes[1])
 
 
 def deformation_vector():
-    n1 = (1+cos(2*pi*x1[0]))*VolumeNormal(multimesh.part(1))
-    # x1 = SpatialCoordinate(multimesh.part(1))
-    # n1 = as_vector((x1[1], x1[0]))
+    n1 = (1+x1[0]*sin(2*pi*x1[1]))*VolumeNormal(multimesh.part(1))
     S_sm = VectorFunctionSpace(multimesh.part(1), "CG", 1)
-    # bcs = [DirichletBC(S_sm, Constant((0,0)), mfs[1],2),
-    #        DirichletBC(S_sm, n1, mfs[1], 1)]
-    bcs = [DirichletBC(S_sm, n1, mfs[1], 1)]
-
+    # Note removing 0 dirichlet at dI introduces problems with the change in
+    # the cut cell and overlap cell part. We do not have any way of describing
+    # this movement
+    bcs = [DirichletBC(S_sm, n1, mfs[1], 2),
+           DirichletBC(S_sm, Constant((0,0)), mfs[1], 1)]
+    
     u,v = TrialFunction(S_sm), TestFunction(S_sm)
     a = inner(grad(u),grad(v))*dx
     l = inner(Constant((0.,0.)), v)*dx
@@ -101,14 +103,20 @@ lmb = MultiMeshFunction(V)
 
 # Terms for variational form
 alpha = 4
+beta = 4
+h = 2*Circumradius(multimesh)
+h = 0.5*(h("+")+h("-"))
 a1 = inner(grad(T), grad(lmb))*dX
 a2 = -dot(avg(grad(T)), jump(lmb, n))*dI
 a3 = -dot(avg(grad(lmb)), jump(T, n))*dI
-a4 = alpha*inner(jump(T), jump(lmb))*dI
+# NOTE: Only adding h to a4 reduced convergence rate
+a4 = alpha/h*inner(jump(T), jump(lmb))*dI
+# NOTE: Adding overlap stabilization increases convergence rate to two as it enforces smoothness
+a5 = beta*dot(jump(grad(T)), jump(grad(lmb)))*dO
 J1 = inner(T,T)*dX
 
 def solve_state():
-    a = a1+a2+a3+a4
+    a = a1+a2+a3+a4+a5
     a = replace(a, {lmb: TestFunction(V), T: TrialFunction(V)})
     l = Constant(0)*TestFunction(V)*dX
     a = assemble_multimesh(a)
@@ -120,7 +128,7 @@ def solve_state():
     solve(a, T.vector(), L)
 
 def solve_adjoint():
-    a = a1+a2+a3+a4
+    a = a1+a2+a3+a4+a5
     a = derivative(a, T, TestFunction(V))
     a = replace(a, {lmb: TrialFunction(V)})
     l = derivative(-J1, T, TestFunction(V))
@@ -132,16 +140,11 @@ def solve_adjoint():
     V.lock_inactive_dofs(a, L)
     solve(a, lmb.vector(), L)
 solve_state()
-J = a1 + J1 + a2 + a3 + a4
+solve_adjoint()
+J = J1
 
-
-
-# T.assign_part(0, project(x0[0]-2.0, FunctionSpace(meshes[0], "CG", degree)))
-# T.assign_part(1, project(x1[1]+(x1[0]-0.2)*x1[1], FunctionSpace(meshes[1], "CG", degree)))
-# lmb.assign_part(0, project(cos(x0[1])*x0[0],
-#                            FunctionSpace(meshes[0], "CG", degree)))
-# lmb.assign_part(1, project(x1[0]*sin(x1[1]),
-#                            FunctionSpace(meshes[1], "CG", degree)))
+V0 = FunctionSpace(meshes[0], "CG", degree)
+V1 = FunctionSpace(meshes[1], "CG", degree)
 
 #----------------------------------------------------------------------------
 # Create corresponding gradients
@@ -206,9 +209,6 @@ dJ1_bottom =  div(s_bottom)*inner(T, T)*dX
 # Material derivative of background T
 dJ1_bottom += 2*inner(dot(s_bottom, grad(T)), T)*dX
 
-# solve_state()
-# solve_adjoint()
-# J = J1
 Ts = [File("output/T%d.pvd" %i) for i in range(multimesh.num_parts())]
 lmbs = [File("output/lmb%d.pvd" %i) for i in range(multimesh.num_parts())]
 
@@ -216,15 +216,15 @@ for i in range(multimesh.num_parts()):
     Ts[i] << T.part(i)
     lmbs[i] << lmb.part(i)
 
-dJds = assemble_multimesh(da1_top + da1_bottom
-                          + dJ1_top + dJ1_bottom + da2+ da3 + da4)
+dJds = assemble_multimesh(da1_top + da1_bottom  + da2 + da3
+                          + dJ1_top + dJ1_bottom)
 
 
 
 
 # Do a taylor test for deformation of the top mesh
 Js = [assemble_multimesh(J)]
-epsilons = [0.01*0.5**i for i in range(5)]
+epsilons = [1e-2*0.5**i for i in range(5)]
 errors = {"0": [], "1": []}
 
 for eps in epsilons:
@@ -235,7 +235,7 @@ for eps in epsilons:
         ALE.move(multimesh.part(i), s_eps.part(i))
     multimesh.build()
     multimesh.auto_cover(0,Point(1.25, 0.875))
-    #solve_state()
+    solve_state()
     for i in range(multimesh.num_parts()):
         Ts[i] << T.part(i)
         lmbs[i] << lmb.part(i)
