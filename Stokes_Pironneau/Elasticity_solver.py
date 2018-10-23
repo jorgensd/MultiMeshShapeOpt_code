@@ -119,5 +119,5 @@ if __name__ == "__main__":
     e_solve = ElasticitySolver(mesh, mf)
     h = Expression(("x[0]","x[1]"), degree=1)
     f = Constant(("0","0"))
-    e_solve.solve(h,f,2)
+    e_solve.solve(f,h,2)
 
