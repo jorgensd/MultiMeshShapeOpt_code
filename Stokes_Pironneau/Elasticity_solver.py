@@ -103,8 +103,8 @@ class ElasticitySolver():
         solver.parameters["monitor_convergence"] = 1==0
         solver.set_operator(A)
         solver.solve(self.u_.vector(), b)
-        plot(self.u_)
-        show()
+        # plot(self.u_)
+        # show()
         
 if __name__ == "__main__":
     mesh = Mesh()

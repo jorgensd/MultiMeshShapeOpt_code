@@ -25,7 +25,7 @@
 # is employed at the boundaries of the top mesh, to keep the mesh quality.
 
 import numpy as np
-import matplotlib.pyplot as plt
+from matplotlib.pyplot import show
 import matplotlib as mpl
 from dolfin import *
 import moola
@@ -178,46 +178,6 @@ def Laplacian(mesh, mf_1, n, step, direction, alpha=1e-2):
     solve(a==l, deform , solver_parameters={"linear_solver":"mumps"})
     return deform
 
-def lin_elasticity(mesh, mf_1, direction, cvt=None):
-    # Rubber Beam Parameters
-    E = 32100e9#0.1e9 # Youngs modulus (Pa)
-    nu = 0.27#0.48 # Poisson ratio
-
-    # Force due to gravity
-    f = Constant((0,0))
-
-    # Elasticity parameters
-    mu = E/(2.0*(1.0 + nu))
-    lmbda = E*nu/((1.0 + nu)*(1.0 - 2.0*nu))
-
-    # Stress computation
-    def sigma(v):
-        return 2.0*mu*sym(grad(v)) + lmbda*tr(sym(grad(v)))*Identity(len(v))
-
-    # Create function space
-    V = VectorFunctionSpace(mesh, "Lagrange", 1)
-
-
-    # Stress on boundary
-    x = SpatialCoordinate(mesh)
-    dS_stress = Measure("ds", domain=mesh, subdomain_data=mf_1)
-    if cvt is not None:
-        move = direction+cvt
-    else:
-        move = direction
-
-    # Define variational problem
-    u = TrialFunction(V)
-    v = TestFunction(V)
-    a = inner(sigma(u), grad(v))*dx
-    L = inner(f, v)*dx
-
-    bc = DirichletBC(V, move, mf_1, 2)
-    # Create solution function
-    u_fin = Function(V, name="deform")
-    solve(a==L, u_fin, bcs=bc, solver_parameters={"linear_solver": "mumps"})
-    return u_fin
-
 
 """
 Several helper functions for the linear and bilinear weak formulation
@@ -280,18 +240,21 @@ def deform_mesh(multimesh_o, step, forget=False, vfac=Constant(1),
     u, p = StokesSolve(multimesh)
     gradient = functional_gradient(u, multimesh, Vol0, bx0, by0,vfac=vfac,
                                    bfac=bfac)
-    direction = -gradient
     mf_0, mf_1 = load_facet_function(multimesh)
     
     from femorph import VolumeNormal
     normal = VolumeNormal(multimesh.part(1), [0], mf_1)
 
     deform_time = -time.time()
-    w1 =  Laplacian(multimesh.part(1), mf_1, normal, step, direction,
-                  alpha=5e-1)
-    w1 = lin_elasticity(multimesh.part(1), mf_1, w1,cvt=cvt)
+    #direction = -gradient   
+    # w1 =  Laplacian(multimesh.part(1), mf_1, normal, step, direction,
+    #               alpha=5e-1)
+    direction = -step*gradient*normal
+    from Elasticity_solver import ElasticitySolver
+    e_solve = ElasticitySolver(multimesh.part(1), mf_1)
+    e_solve.solve(Constant((0,0)), direction, 2)
+    w1 = e_solve.u_
     ALE.move(multimesh.part(1), w1)
-
     deform_time += time.time()
     print("Deformation time: %.2e" % deform_time)
     multimesh.build()
@@ -423,8 +386,8 @@ if __name__ == "__main__":
     vfac, bfac = Constant(2.5e4), Constant(5e2)
     vfac_org = float(vfac)
     red_tol = 1e-5 # 8e-5 standard red_tol
-    start_stp = 1e-3
-    stp_min,stp_max = 5e-9, 1e-1
+    start_stp = 1e-2#1e-3
+    stp_min,stp_max = 1e-16,1e-1#5e-9, 1e-1
 
     sub_problem_it, Js, dJs, Vol_off, Bx_off, By_off, MQ = ([] for _ in range(7))
     meshfile = File("output/"+out_name+"mesh.pvd")
