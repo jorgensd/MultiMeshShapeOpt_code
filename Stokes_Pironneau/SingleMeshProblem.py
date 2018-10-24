@@ -297,6 +297,7 @@ if __name__ == "__main__":
         start_stp = 2
         max_stp = 2
         min_stp = 1e-10
+        red_tol = 1e-5
         linesearch = ArmijoLineSearch(start_stp=start_stp,
                                       stpmax=max_stp,
                                       stpmin=min_stp)
@@ -307,6 +308,11 @@ if __name__ == "__main__":
             dJi = solver.eval_dJ()
             Js.append(Ji)
             dJs.append(dJi)
+            if i>0:
+                rel_red = (abs(Js[-1]-Js[-2])/Js[-1]))
+                print("Rel reduction: %.2e" % (rel_red))
+                if rel_red < rel_tol:
+                    break
             line_step = linesearch.search(solver.phi, None, solver.phi_dphi0())
             print("Step %.2e, J %.2e dJ %.2e" % (line_step, Ji, dJi))
             solver.steepest_descent_update(line_step)
