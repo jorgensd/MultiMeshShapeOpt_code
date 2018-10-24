@@ -80,11 +80,36 @@ class StokesSolver():
         #mesh.coordinates = self.backup
         #volume_function = self.InjectFunctionFromSurface(surface_deformation)
         u, v = TrialFunction(self.S), TestFunction(self.S)
+
+        def compute_mu(constant=True):
+            """
+            Compute mu as according to arxiv paper
+            https://arxiv.org/pdf/1509.08601.pdf
+            """
+            mu_min=Constant(1)
+            mu_max=Constant(500)
+            if constant:
+                return mu_max
+            else:
+                V = FunctionSpace(self.mesh, "CG",1)
+                u, v = TrialFunction(V), TestFunction(V)
+                a = inner(grad(u),grad(v))*dx
+                l = Constant(0)*v*dx
+                bcs = []
+                for marker in self.move_dict["Fixed"]:
+                    bcs.append(DirichletBC(V, mu_min, self.mf, marker))
+                for marker in self.move_dict["Deform"]:
+                    bcs.append(DirichletBC(V, mu_max, self.mf, marker))
+                mu = Function(V)
+                solve(a==l, mu, bcs=bcs)
+                return mu
+        mu = compute_mu(False)
+        
         def epsilon(u):
             return sym(grad(u))
         def sigma(u,mu=500, lmb=0):
             return 2*mu*epsilon(u) + lmb*tr(epsilon(u))*Identity(2)
-        a = inner(sigma(u), grad(v))*dx
+        a = inner(sigma(u,mu=mu), grad(v))*dx
         L = inner(Constant((0,0)), v)*dx
         L -= self.dJ_form
 
@@ -100,8 +125,6 @@ class StokesSolver():
                                    self.mf, marker))
         s = Function(self.S)
         solve(a==L, s, bcs=bcs)
-        plot(s)
-        show()
         self.perturbation = s
 
 
@@ -144,7 +167,6 @@ class StokesSolver():
 
     def eval_dJ(self):
         self.generate_mesh_deformation()
-        plot(self.perturbation)
         self.dJ = assemble(self.dJ_form).inner(self.perturbation.vector())
         return self.dJ
 
