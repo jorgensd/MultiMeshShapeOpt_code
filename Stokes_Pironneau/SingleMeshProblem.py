@@ -309,7 +309,7 @@ if __name__ == "__main__":
             Js.append(Ji)
             dJs.append(dJi)
             if i>0:
-                rel_red = (abs(Js[-1]-Js[-2])/Js[-1]))
+                rel_red = (abs(Js[-1]-Js[-2])/Js[-1])
                 print("Rel reduction: %.2e" % (rel_red))
                 if rel_red < rel_tol:
                     break
