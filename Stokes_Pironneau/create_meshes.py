@@ -176,10 +176,13 @@ def single_mesh(res=0.025):
     obstacle_loop = geometry.add_line_loop([arc_1, arc_2, arc_3, arc_4])
 
     rectangle = geometry.add_rectangle(0,L,0,H,0, res, holes=[obstacle_loop])
-    
+    flow_list = [rectangle.line_loop.lines[0], rectangle.line_loop.lines[2],
+                 rectangle.line_loop.lines[3]]
+    wall_list = obstacle_loop.lines
     geometry.add_physical_surface(rectangle.surface,label=12)
-    geometry.add_physical_line(obstacle_loop.lines, label=inner_marker)
-    geometry.add_physical_line(rectangle.line_loop.lines, label=outer_marker)
+    geometry.add_physical_line(flow_list, label=inflow)
+    geometry.add_physical_line([rectangle.line_loop.lines[1]], label=outflow)
+    geometry.add_physical_line(wall_list, label=walls)
     field = geometry.add_boundary_layer(edges_list=obstacle_loop.lines,
                                         hfar=res, hwall_n=res/2, thickness=2*res)
     geometry.add_background_field([field])
