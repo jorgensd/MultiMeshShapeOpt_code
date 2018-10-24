@@ -15,19 +15,23 @@ class ElasticitySolver():
     See paper by Kutcha for information about this: 
     https://arxiv.org/pdf/1609.09425.pdf
     """
-    def __init__(self, mesh, facet_function):
+    def __init__(self, mesh, facet_function, free_marker, deform_marker, constant_mu=True):
         parameters["linear_algebra_backend"] = "PETSc"
         self.mesh = mesh
         self.mf = facet_function
+        self.free_marker = free_marker
+        self.deform_marker = deform_marker
+
         self.f = Constant((0,0))
         self.h = Constant((0,0))
         self.V= VectorFunctionSpace(mesh, "CG", 1)
         self.u = TrialFunction(self.V)
         self.v = TestFunction(self.V)
         self.u_ = Function(self.V)
-        self.mu = 500
         self.lmb = 0
-        self._sigma(self.mu, self.lmb)
+        self.compute_mu(constant_mu)
+        
+        self._sigma()
         self.build_nullspace()
     
     def build_nullspace(self):
@@ -71,16 +75,38 @@ class ElasticitySolver():
                                     subdomain_data=self.mf,
                                     subdomain_id=marker)
 
+    def compute_mu(self, constant):
+        """
+        Compute mu as according to arxiv paper
+        https://arxiv.org/pdf/1509.08601.pdf
+        """
+        mu_min=Constant(400)
+        mu_max=Constant(500)
+        if constant:
+                self.mu = mu_max
+        else:
+            V = FunctionSpace(self.mesh, "CG",1)
+            u, v = TrialFunction(V), TestFunction(V)
+            a = inner(grad(u),grad(v))*dx
+            l = Constant(0)*v*dx
+            bcs = [DirichletBC(V, mu_min, self.mf, self.free_marker),
+                   DirichletBC(V, mu_max, self.mf, self.deform_marker)]
+            mu = Function(V)
+            solve(a==l, mu, bcs=bcs)
+            File("output/mu.pvd") << mu
+            self.mu = mu
+        
             
-    def _sigma(self, mu, lmb):
+    def _sigma(self):
         """
         Helper function for  variational form, inititalized with 
         """
-        self.sigma = 2*mu*epsilon(self.u) + lmb*tr(epsilon(self.u))*Identity(2)
+        self.sigma = 2*self.mu*epsilon(self.u) \
+                     + self.lmb*tr(epsilon(self.u))*Identity(2)
 
-    def solve(self, f, h, marker):
+    def solve(self, f, h):
         self.set_volume_forces(f)
-        self.set_boundary_stress(h, marker)
+        self.set_boundary_stress(h, self.deform_marker)
         a = inner(self.sigma, grad(self.v))*dx
         L = inner(self.f,self.v)*dx + inner(self.h,self.v)*self.dstress
 
@@ -115,9 +141,12 @@ if __name__ == "__main__":
     with XDMFFile("meshes/mf_1.xdmf") as infile:
         infile.read(mvc, "name_to_read")
         mf = cpp.mesh.MeshFunctionSizet(mesh, mvc)
-    
-    e_solve = ElasticitySolver(mesh, mf)
+
+    from create_meshes import inner_marker, outer_marker
+    e_solve = ElasticitySolver(mesh, mf, free_marker=outer_marker,
+                               deform_marker=inner_marker,
+                               constant_mu=False)
     h = Expression(("x[0]","x[1]"), degree=1)
     f = Constant(("0","0"))
-    e_solve.solve(f,h,2)
+    e_solve.solve(f,h)
 
