@@ -434,7 +434,13 @@ if __name__ == "__main__":
         print("Optimal perturbation")
         print(max(result["x"]))
     #scipy_optimization()
+
+
     def steepest_descent():
+        """
+        Sovle stokes optimization problem with a simple steepest descent algorithm
+        using armijo linesearch for steplength.
+        """
         from moola.linesearch import ArmijoLineSearch
         max_it = 100
         start_stp = 2
@@ -462,4 +468,4 @@ if __name__ == "__main__":
             solver.steepest_descent_update(line_step,out=True)
             solver.generate_mesh_deformation()
 
-    steepest_descent()
+    #steepest_descent()
