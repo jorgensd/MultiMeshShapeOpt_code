@@ -7,14 +7,22 @@ from dolfin import (Mesh, MeshFunction, VectorElement, FiniteElement,
                     Expression, dof_to_vertex_map,
                     vertex_to_dof_map, Vertex, Identity, tr,
                     Measure, TrialFunction, TestFunction, sym, ALE,
-                    MeshEntity, SpatialCoordinate, as_vector, assemble)
+                    MeshEntity, SpatialCoordinate, as_vector, assemble,
+                    set_log_level, LogLevel)
+set_log_level(LogLevel.ERROR)
 from IPython import embed
 import numpy
 from pdb import set_trace
 from matplotlib.pyplot import show
 
+sm_def = File("output/sm_deform.pvd")
 class StokesSolver():
     def __init__(self, mesh, mf, mesh_b, bc_dict, move_dict):
+        """
+        Inititalize Stokes solver with a mesh, its corresponding facet function, its boundary mesh
+        (used for shape optimization), a dictionary describing boundary conditions and 
+        a dictionary describing which boundaries are fixed in the shape optimization setting
+        """
         self.mesh = mesh
         self.mesh_b = mesh_b
         self.backup = mesh.coordinates()
@@ -30,11 +38,22 @@ class StokesSolver():
         self.J = 0
         self._init_bcs(bc_dict)
         self.solve()
-        self._init_geometric_functions()
         self.vfac = 1e4
         self.bfac = 1e2
+        self._init_geometric_functions()
+        self.eval_current_J()
+        self.eval_current_dJ()
+        self.outfile = File("output/u_singlemesh.pvd")
+        self.outfile << self.u
+        # Boundary formulation
+        S_b = VectorFunctionSpace(self.mesh_b, "CG", 1)
+        self.design_var = Function(S_b)
         
     def _init_geometric_functions(self):
+        """
+        Helper initializer to compute original volume and barycenter
+        of the obstacle.
+        """
         x = SpatialCoordinate(self.mesh)
         VolOmega = assemble(Constant(1)*dx(domain=self.mesh))
         self.Vol0 = Constant(1 - VolOmega)
@@ -42,6 +61,9 @@ class StokesSolver():
         self.by0 = Constant((Constant(1./2)-assemble(x[1]*dx))/self.Vol0)
 
     def compute_volume_bary(self):
+        """
+        Compute barycenter and volume of obstacle with current mesh
+        """
         x = SpatialCoordinate(self.mesh)
         VolOmega = assemble(Constant(1)*dx(domain=self.mesh))
         self.Vol = Constant(1 - VolOmega)
@@ -62,7 +84,7 @@ class StokesSolver():
 
     def solve(self):
         """
-        Solve Stokes problem
+        Solve Stokes problem with current mesh
         """
         (u, p) = TrialFunctions(self.VQ)
         (v, q) = TestFunctions(self.VQ)
@@ -77,8 +99,6 @@ class StokesSolver():
         Generates an linear elastic mesh deformation using the steepest
         gradient as stress on the boundary.
         """
-        #mesh.coordinates = self.backup
-        #volume_function = self.InjectFunctionFromSurface(surface_deformation)
         u, v = TrialFunction(self.S), TestFunction(self.S)
 
         def compute_mu(constant=True):
@@ -112,11 +132,6 @@ class StokesSolver():
         a = inner(sigma(u,mu=mu), grad(v))*dx
         L = inner(Constant((0,0)), v)*dx
         L -= self.dJ_form
-
-        # If we ever use mesh nodes as direct control
-        # dStress = Measure("ds", subdomain_data=self.mf)
-        # for marker in self.move_dict["Deform"]:
-        #     L += inner(volume_function, v)*dStress(marker)
         
         bcs = []
         for marker in self.move_dict["Fixed"]:
@@ -128,13 +143,114 @@ class StokesSolver():
         self.perturbation = s
 
 
-    def steepest_descent_update(self, step):
+    def steepest_descent_update(self, step, out=False):
+        """
+        Updates the mesh in the steepest descent direction with steplength 'step'
+        """
         s_descent = self.perturbation.copy(deepcopy=True)
+        if out:
+            sm_def << s_descent
         s_descent.vector()[:] *= step
         ALE.move(self.mesh, s_descent)
 
-    def eval_J(self):
-        # Evaluates J with current mesh
+    def update_mesh_from_boundary_nodes(self, perturbation):
+        """
+        Deform mesh with boundary perturbation (a numpy array)
+        given as Neumann input in an linear elastic mesh deformation.
+        """
+        # Reset mesh
+        self.mesh.coordinates()[:] = self.backup
+        self.design_var.vector()[:] = perturbation
+        volume_function = self.InjectFunctionFromSurface(self.design_var)
+        u, v = TrialFunction(self.S), TestFunction(self.S)
+
+        def compute_mu(constant=True):
+            """
+            Compute mu as according to arxiv paper
+            https://arxiv.org/pdf/1509.08601.pdf
+            """
+            mu_min=Constant(1)
+            mu_max=Constant(500)
+            if constant:
+                return mu_max
+            else:
+                V = FunctionSpace(self.mesh, "CG",1)
+                u, v = TrialFunction(V), TestFunction(V)
+                a = inner(grad(u),grad(v))*dx
+                l = Constant(0)*v*dx
+                bcs = []
+                for marker in self.move_dict["Fixed"]:
+                    bcs.append(DirichletBC(V, mu_min, self.mf, marker))
+                for marker in self.move_dict["Deform"]:
+                    bcs.append(DirichletBC(V, mu_max, self.mf, marker))
+                mu = Function(V)
+                solve(a==l, mu, bcs=bcs)
+                return mu
+        mu = compute_mu(False)
+        
+        def epsilon(u):
+            return sym(grad(u))
+        def sigma(u,mu=500, lmb=0):
+            return 2*mu*epsilon(u) + lmb*tr(epsilon(u))*Identity(2)
+        a = inner(sigma(u,mu=mu), grad(v))*dx
+        L = inner(Constant((0,0)), v)*dx
+
+        # If we ever use mesh nodes as direct control
+        dStress = Measure("ds", subdomain_data=self.mf)
+        from femorph import VolumeNormal
+        n = VolumeNormal(mesh)
+        # for marker in self.move_dict["Deform"]:
+        #     L += inner(volume_function, v)*dStress(marker)
+        
+        bcs = []
+        for marker in self.move_dict["Fixed"]:
+            bcs.append(DirichletBC(self.S,
+                                   Constant([0]*mesh.geometric_dimension()),
+                                   self.mf, marker))
+        for marker in self.move_dict["Deform"]:
+            bcs.append(DirichletBC(self.S, volume_function, self.mf, marker))
+        s = Function(self.S)
+        solve(a==L, s, bcs=bcs)
+        self.perturbation = s
+        plot(self.mesh)
+        ALE.move(self.mesh, self.perturbation)
+        plot(self.mesh,color="r")
+        show()
+        
+    def eval_J(self, perturbation):
+        """
+        Evaluate functional with mesh perturbed with perturbation as input
+        """
+        # Update_mesh
+        self.update_mesh_from_boundary_nodes(perturbation)
+        J_eps = self.eval_current_J()
+        return J_eps
+
+    def eval_dJ(self, perturbation):
+        """
+        Evaluate functional gradient with mesh perturbation as input
+        """
+        # Evaluate gradient with given perturbation
+        # Update mesh with perturbation
+        self.update_mesh_from_boundary_nodes(perturbation)
+        # Evaluate state equation for gradient input
+        self.eval_current_J()
+        # Update Gradient form with perturbation given by the elasticity
+        # equations
+        self.dJ = assemble(self.dJ_form)
+        tmp_dJ = Function(self.S)
+        tmp_dJ.vector()[:] = self.dJ
+        # Reduce the problem to a boundary problem
+        # NOTE: Could be further reduced if we were able to connect
+        # 0 dirichlet conditions with input array.
+        dJ_b = self.ReduceFunctionToSurface(tmp_dJ)
+        scale=0.001
+        return scale*dJ_b.vector().get_local()
+
+    def eval_current_J(self):
+        """
+        Evaluates J with current mesh
+        """
         self.solve()
         self.compute_volume_bary()
         self.J = assemble(inner(grad(self.u), grad(self.u))*dx)
@@ -147,6 +263,9 @@ class StokesSolver():
 
     # Helper function for moola
     def phi(self, step):
+        """
+        Evaluate functional in steepest descent direction
+        """
         # Perturbes the mesh and evaluates at current point
         self.backup = self.mesh.coordinates().copy()
         self.steepest_descent_update(step)
@@ -157,7 +276,6 @@ class StokesSolver():
         J_eps += float(self.bfac*self.bx_off**2)
         J_eps += float(self.bfac*self.by_off**2)
         self.mesh.coordinates()[:] = self.backup
-        print(step, J_eps-self.J, self.dJ)
         return J_eps
 
     # Helper function for moola
@@ -165,15 +283,20 @@ class StokesSolver():
         """ Return J and dJ with current mesh"""
         return self.J, self.dJ
 
-    def eval_dJ(self):
+    def eval_current_dJ(self):
+        """
+        Returns gradient with current mesh
+        """
         self.generate_mesh_deformation()
         self.dJ = assemble(self.dJ_form).inner(self.perturbation.vector())
         return self.dJ
 
+    # FIXME: This could be simplified if we only store the integrand.
     def recompute_dJ(self):
         """
         Create gradient expression for deformation algorithm
         """
+
         # Recalculate barycenter and volume of obstacle
         self.compute_volume_bary()
 
@@ -268,6 +391,14 @@ class StokesSolver():
         File("output/surface_movement.pvd") << surfacevector
         return surfacevector
 
+    
+    def callback(self, perturbation):
+        print("New iteration")
+        self.eval_dJ(perturbation)
+        self.eval_current_J()
+        print("Current J", self.J)
+
+        self.outfile << self.u
         
 if __name__ == "__main__":
     mesh = Mesh()
@@ -279,9 +410,6 @@ if __name__ == "__main__":
     mf = cpp.mesh.MeshFunctionSizet(mesh, mvc)
 
     mesh_b = BoundaryMesh(mesh, "exterior")
-    # S_b = VectorFunctionSpace(mesh_b, "CG", 1)
-    # s_b = Function(S_b)
-    #project(Expression(("cos(x[0])", "x[1]"), degree=1), S_b)
 
     from create_meshes import inflow, outflow, walls
     solver = StokesSolver(mesh, mf, mesh_b,
@@ -290,7 +418,22 @@ if __name__ == "__main__":
                           {"Fixed": [inflow, outflow], "Deform": [walls]})
     Js = []
     dJs = []
-    
+    print("original J", solver.J)
+    S_b = VectorFunctionSpace(mesh_b, "CG", 1)
+    s_b = Function(S_b)
+    s_b_array = s_b.vector().get_local().copy()
+    # s_b = project(Expression(("cos(x[0])", "x[1]"), degree=1), S_b)
+    dJ_c = solver.eval_dJ(s_b_array)
+    def scipy_optimization():
+        from scipy.optimize import minimize
+        result = minimize(solver.eval_J, s_b_array,
+                          jac=solver.eval_dJ,
+                          method="BFGS",
+                          callback=solver.callback,
+                          options={"disp":True})
+        print("Optimal perturbation")
+        print(max(result["x"]))
+    #scipy_optimization()
     def steepest_descent():
         from moola.linesearch import ArmijoLineSearch
         max_it = 100
@@ -303,19 +446,20 @@ if __name__ == "__main__":
                                       stpmin=min_stp)
         meshfile = File("output/singlemesh.pvd")
         for i in range(max_it):
+            print("Iteration %d" %i)
             meshfile << solver.mesh
-            Ji = solver.eval_J()
-            dJi = solver.eval_dJ()
+            Ji = solver.eval_current_J()
+            dJi = solver.eval_current_dJ()
             Js.append(Ji)
             dJs.append(dJi)
             if i>0:
                 rel_red = (abs(Js[-1]-Js[-2])/Js[-1])
                 print("Rel reduction: %.2e" % (rel_red))
-                if rel_red < rel_tol:
+                if rel_red < red_tol:
                     break
             line_step = linesearch.search(solver.phi, None, solver.phi_dphi0())
             print("Step %.2e, J %.2e dJ %.2e" % (line_step, Ji, dJi))
-            solver.steepest_descent_update(line_step)
+            solver.steepest_descent_update(line_step,out=True)
             solver.generate_mesh_deformation()
 
     steepest_descent()
