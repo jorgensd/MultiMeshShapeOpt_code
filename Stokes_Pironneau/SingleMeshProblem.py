@@ -25,7 +25,7 @@ class StokesSolver():
         """
         self.mesh = mesh
         self.mesh_b = mesh_b
-        self.backup = mesh.coordinates()
+        self.backup = mesh.coordinates().copy()
         self.mf = mf
         V2 = VectorElement("CG", mesh.ufl_cell(), 2)
         S1 = FiniteElement("CG", mesh.ufl_cell(), 1)
@@ -48,6 +48,7 @@ class StokesSolver():
         # Boundary formulation
         S_b = VectorFunctionSpace(self.mesh_b, "CG", 1)
         self.design_var = Function(S_b)
+        self.iteration_counter = 1
         
     def _init_geometric_functions(self):
         """
@@ -199,23 +200,20 @@ class StokesSolver():
         dStress = Measure("ds", subdomain_data=self.mf)
         from femorph import VolumeNormal
         n = VolumeNormal(mesh)
-        # for marker in self.move_dict["Deform"]:
-        #     L += inner(volume_function, v)*dStress(marker)
+        for marker in self.move_dict["Deform"]:
+            L += inner(volume_function, v)*dStress(marker)
         
         bcs = []
         for marker in self.move_dict["Fixed"]:
             bcs.append(DirichletBC(self.S,
                                    Constant([0]*mesh.geometric_dimension()),
                                    self.mf, marker))
-        for marker in self.move_dict["Deform"]:
-            bcs.append(DirichletBC(self.S, volume_function, self.mf, marker))
+        # for marker in self.move_dict["Deform"]:
+        #     bcs.append(DirichletBC(self.S, volume_function, self.mf, marker))
         s = Function(self.S)
         solve(a==L, s, bcs=bcs)
         self.perturbation = s
-        plot(self.mesh)
         ALE.move(self.mesh, self.perturbation)
-        plot(self.mesh,color="r")
-        show()
         
     def eval_J(self, perturbation):
         """
@@ -244,9 +242,13 @@ class StokesSolver():
         # NOTE: Could be further reduced if we were able to connect
         # 0 dirichlet conditions with input array.
         dJ_b = self.ReduceFunctionToSurface(tmp_dJ)
-        scale=0.001
+        scale= 1
         return scale*dJ_b.vector().get_local()
 
+    def update_mesh_coordinates(self, perturbation):
+        self.update_mesh_from_boundary_nodes(perturbation)
+        self.backup = self.mesh.coordinates().copy()
+    
     def eval_current_J(self):
         """
         Evaluates J with current mesh
@@ -393,7 +395,9 @@ class StokesSolver():
 
     
     def callback(self, perturbation):
-        print("New iteration")
+        print("Iteration %d" %self.iteration_counter)
+        self.iteration_counter +=1
+        self.mesh.coordinates()[:] = self.backup
         self.eval_dJ(perturbation)
         self.eval_current_J()
         print("Current J", self.J)
@@ -426,14 +430,20 @@ if __name__ == "__main__":
     dJ_c = solver.eval_dJ(s_b_array)
     def scipy_optimization():
         from scipy.optimize import minimize
-        result = minimize(solver.eval_J, s_b_array,
-                          jac=solver.eval_dJ,
-                          method="BFGS",
-                          callback=solver.callback,
-                          options={"disp":True})
-        print("Optimal perturbation")
-        print(max(result["x"]))
-    #scipy_optimization()
+        # Number of optimization runs needed to get a good geometry
+        for i in range(5):
+            s_b = Function(S_b)
+            s_b_array = s_b.vector().get_local().copy()
+            result = minimize(solver.eval_J, s_b_array,
+                              jac=solver.eval_dJ,
+                              method="BFGS",
+                              callback=solver.callback,
+                              options={"disp":True})
+            print("Optimal perturbation")
+            # Update mesh to new perturbed mesh
+            solver.update_mesh_coordinates(result['x'])
+
+    scipy_optimization()
 
 
     def steepest_descent():
