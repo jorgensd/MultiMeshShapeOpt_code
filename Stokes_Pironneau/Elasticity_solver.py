@@ -80,7 +80,7 @@ class ElasticitySolver():
         Compute mu as according to arxiv paper
         https://arxiv.org/pdf/1509.08601.pdf
         """
-        mu_min=Constant(400)
+        mu_min=Constant(1)
         mu_max=Constant(500)
         if constant:
                 self.mu = mu_max
@@ -131,6 +131,21 @@ class ElasticitySolver():
         solver.solve(self.u_.vector(), b)
         # plot(self.u_)
         # show()
+
+    def solve_dirichlet(self, f, h):
+        """
+        Solve with Dirichlet condition on deforming boundary
+        """
+        self.set_volume_forces(f)
+        self.set_boundary_stress(h, self.deform_marker)
+        bc = DirichletBC(self.V, h, self.mf, self.deform_marker)
+        a = inner(self.sigma, grad(self.v))*dx
+        L = inner(self.f,self.v)*dx
+        solve(a==L, self.u_, bcs=bc)
+        # Assemble system
+        plot(self.u_)
+        show()
+
         
 if __name__ == "__main__":
     mesh = Mesh()
