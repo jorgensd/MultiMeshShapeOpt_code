@@ -24,7 +24,7 @@ class PoissonSolver():
         self.out = File("output/all_track_single.pvd")
         self.f = source
         self.init_mesh(meshname, facetname)
-        self.V = FunctionSpace(self.mesh, "CG", 1)
+        self.V = FunctionSpace(self.mesh, "CG", 2)
         self.S = VectorFunctionSpace(self.mesh, "CG", 1)        
         self.T = Function(self.V, name="state")
         self.lmb = Function(self.V, anme="adjoint")
@@ -48,6 +48,14 @@ class PoissonSolver():
     # Helper functions for state and adjoint
     def a_s(self, T, v):
         return dot(grad(T), grad(v))*dx
+
+    def a_N(self, u, v,g, marker):
+        self.alpha = 1000
+        dB = Measure("ds", domain=self.mesh, subdomain_data=self.mf)
+        n = FacetNormal(self.mesh)
+        return -inner(dot(grad(u), n), v)*dB(marker)  - inner(u-g, dot(grad(v), n))*dB(marker) +self.alpha*(u-g)*v*dB(marker)
+        
+        
     def l_s(self, f, v):
         return f*v*dx
 
@@ -66,19 +74,20 @@ class PoissonSolver():
         # Define trial and test functions and right-hand side
         T = TrialFunction(self.V)
         v = TestFunction(self.V)
-        
-        # Define bilinear form and linear form 
-        a = self.a_s(T,v)
         f = Function(self.V)
         f.interpolate(self.f)
-        L = self.l_s(f,v)
+        
+        # Define bilinear form and linear form 
+        F = self.a_s(T,v) + self.a_N(T, v, Constant(1.0), self.inner_marker)\
+            + self.a_N(T, v, Constant(0), self.outer_marker) - self.l_s(f,v)
+        
         
         # Assemble linear system
-        A = assemble(a)
-        b = assemble(L)
-        bcs = [DirichletBC(self.V, Constant(0), self.mf, self.outer_marker),
-               DirichletBC(self.V, Constant(1), self.mf, self.inner_marker)]
-        [bc.apply(A,b) for bc in bcs]
+        A = assemble(lhs(F))
+        b = assemble(rhs(F))
+        # bcs = [DirichletBC(self.V, Constant(0), self.mf, self.outer_marker),
+        #        DirichletBC(self.V, Constant(1), self.mf, self.inner_marker)]
+        # [bc.apply(A,b) for bc in bcs]
         
         # Solving linear system
         solve(A, self.T.vector(), b,'lu')
@@ -100,7 +109,8 @@ class PoissonSolver():
         f = Function(self.V)
         f.interpolate(self.f)
         v = Function(self.V)
-        L = self.J_ufl(self.T) + self.a_s(self.T,v) - self.l_s(f,v)
+        L = self.J_ufl(self.T) + self.a_s(self.T,v) + self.a_N(self.T, v, Constant(1.0), self.inner_marker)\
+            + self.a_N(self.T, v, Constant(0), self.outer_marker) - self.l_s(f,v)
         adjoint = derivative(L, self.T, TestFunction(self.V))
         from ufl import replace
         adjoint = replace(adjoint,  {v: TrialFunction(self.V)})
@@ -108,9 +118,9 @@ class PoissonSolver():
     
         A = assemble(a)
         b = assemble(L)
-        bcs = [DirichletBC(self.V, Constant(0), self.mf, self.outer_marker)
-               ,DirichletBC(self.V, Constant(0), self.mf, self.inner_marker)]
-        [bc.apply(A,b) for bc in bcs]
+        # bcs = [DirichletBC(self.V, Constant(0), self.mf, self.outer_marker)
+        #        ,DirichletBC(self.V, Constant(0), self.mf, self.inner_marker)]
+        #[bc.apply(A,b) for bc in bcs]
         solve(A, self.lmb.vector(), b, 'lu')
 
         # Compute gradient
@@ -119,8 +129,34 @@ class PoissonSolver():
                     -f*self.lmb)*dx - inner(dot(grad(self.T),grad(s)), grad(self.lmb))*dx\
                     - inner(grad(self.T), dot(grad(self.lmb),grad(s)))*dx
         n = FacetNormal(self.mesh)
-        d_Hadamard = inner(s,n)*(0.5*self.T*self.T-inner(n, grad(self.lmb))*inner(n, grad(self.T)))*ds
+        dn_mat = dot(outer(grad(s)*n,n).T,n) - dot(grad(s).T, n)
 
+        dB = Measure("ds", domain=self.mesh, subdomain_data=self.mf)
+        def weak_dirichlet(u,v,g, marker):
+            # Derivative of (u-g)du/dn
+            d_1 = (div(s)-inner(dot(grad(s), n), n))*(u-g)*dot(grad(v), n)*dB(marker)\
+                - (u-g)*inner(dot(grad(v), grad(s)),n)*dB(marker)\
+                + (u-g)*dot(grad(v), dn_mat)*dB(marker)
+            # Derivative of v du/dn
+            d_2 = (div(s)-inner(dot(grad(s), n), n))*(v)*dot(grad(u), n)*dB(marker)\
+                - (v)*inner(dot(grad(u), grad(s)),n)*dB(marker)\
+                + (v)*dot(grad(u), dn_mat)*dB(marker)
+            # Derivative of alpha (u-g)v
+            d_3 = self.alpha*(div(s)-inner(dot(grad(s), n), n))\
+                  *(u-g)*v*dB(marker)
+            d = assemble(d_1+d_2+d_3)
+            embed()
+            return d_1 + d_2
+        d+=  weak_dirichlet(self.T, self.lmb, Constant(1), self.inner_marker)
+        
+
+        # Hadamard version assuming strong form of gradient is fulfilled
+        n = FacetNormal(self.mesh)
+        d_Hadamard = inner(s,n)*(0.5*self.T*self.T -inner(n, grad(self.lmb))*inner(n, grad(self.T)))*ds
+        plot(self.T)
+        plt.show()
+        plot(self.lmb)
+        plt.show()
         dJs = assemble(d)
         dJs_Hadamard = assemble(d_Hadamard)
         s = Function(self.S)
