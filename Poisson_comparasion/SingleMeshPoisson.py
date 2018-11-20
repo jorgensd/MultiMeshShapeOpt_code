@@ -112,10 +112,9 @@ class PoissonSolver():
         f = Function(self.V)
         f.interpolate(self.f)
         v = Function(self.V)
-        L = self.J_ufl(self.T) + self.a_s(self.T,v)  - self.l_s(f,v) #\
-            # + self.a_N(self.T, v, Constant(1.0), self.inner_marker)\
-            # + self.a_N(self.T, v, Constant(0), self.outer_marker) 
+        L = self.J_ufl(self.T) + self.a_s(self.T,v)  - self.l_s(f,v) 
         adj = derivative(L, self.T, TestFunction(self.V))
+
         from ufl import replace
         adj = replace(adj,  {v: TrialFunction(self.V)})
         a, L = lhs(adj), rhs(adj)
@@ -143,37 +142,18 @@ class PoissonSolver():
                     - inner(grad(self.T), dot(grad(self.lmb),grad(s)))*dx
         n = FacetNormal(self.mesh)
         dn_mat = dot(outer(grad(s)*n,n).T,n) - dot(grad(s).T, n)
-
-        dB = Measure("ds", domain=self.mesh, subdomain_data=self.mf)
-        def weak_dirichlet(u,v,g, marker):
-            # Derivative of (u-g)du/dn
-            d_1 = -(div(s)-inner(dot(grad(s), n), n))*(u-g)*dot(grad(v), n)*dB(marker)\
-                  - (u-g)*inner(dot(grad(v), grad(s)),n)*dB(marker)\
-                  + (u-g)*dot(grad(v), dn_mat)*dB(marker)
-            # Derivative of v du/dn
-            d_2 = (div(s)-inner(dot(grad(s), n), n))*-(v)*dot(grad(u), n)*dB(marker)\
-                - (v)*inner(dot(grad(u), grad(s)),n)*dB(marker)\
-                + (v)*dot(grad(u), dn_mat)*dB(marker)
-            # Derivative of alpha (u-g)v
-            d_3 = self.alpha*(div(s)-inner(dot(grad(s), n), n))\
-                  *(u-g)*v*dB(marker)
-            return d_1 + d_2 + d_3
-        # d+=  weak_dirichlet(self.T, self.lmb, Constant(1), self.inner_marker)
-        # d+=  weak_dirichlet(self.T, self.lmb, Constant(0), self.outer_marker)
       
-
         # Hadamard version assuming strong form of gradient is fulfilled
-        # d_Hadamard = inner(s,n)*(0.5*self.T*self.T -inner(n, grad(self.lmb))*inner(n, grad(self.T)))*ds
-        d_Hadamard = inner(s,n)*(0.5*self.T*self.T
-                                 +inner(grad(self.T),grad(self.lmb)
-                                 )
-                                 -f*self.lmb
+        d_Hadamard = inner(s,n)*(0.5*self.T*self.T -inner(n, grad(self.lmb))*inner(n, grad(self.T)))*ds
+        # d_Hadamard = inner(s,n)*(0.5*self.T*self.T
+        #                          +inner(grad(self.T),grad(self.lmb))
+        #                          -f*self.lmb
         ) *ds
-        d_Hadamard += inner(s,n)*self.lmb_b*dot(grad(self.T),n)*ds
-        # d_Hadamard += inner(s,n)*(dot(grad(self.T), n)*dot(grad(self.lmb), n)
+        # d_Hadamard += inner(s,n)*self.lmb*dot(grad(self.T),n)*ds
+        # d_Hadamard += inner(s,n)*(dot(grad(self.T), n)*dot(grad(self.lmb_b), n)
         #                           +dot(dot(n, grad(grad(self.T))), n)
-        #                           -div(grad(self.T)*self.lmb)
-        #                           -inner(dot(grad(grad(self.T)*self.lmb), n), n))*ds
+        #                           -div(grad(self.T)*self.lmb_b)
+        #                           -inner(dot(grad(grad(self.T)*self.lmb_b), n), n))*ds
         dJs = assemble(d)
         dJs_Hadamard = assemble(d_Hadamard)
         s = Function(self.S)
@@ -186,10 +166,11 @@ class PoissonSolver():
 
 
     
-if __name__ == '__main__':
+if __name__ == '__main_
+_':
     m_names = "meshes/singlemesh.xdmf"
     f_names = "meshes/mf.xdmf"
-    fexp = Expression('x[0]*sin(x[0])*cos(x[1])', degree=4)
+    fexp = Constant(0) #Expression('x[0]*sin(x[0])*cos(x[1])', degree=4)
     solver = PoissonSolver(m_names, f_names, fexp)
     solver.eval_dJ(0)
 
