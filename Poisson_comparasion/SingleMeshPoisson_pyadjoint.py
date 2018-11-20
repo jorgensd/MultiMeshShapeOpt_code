@@ -42,35 +42,29 @@ F = a - l_s(f,v)
 
 A = assemble(lhs(F))
 b = assemble(rhs(F))
+
 # Assemble linear system
 bcs = [DirichletBC(V, Constant(0), mf, outer_marker),
        DirichletBC(V, Constant(1), mf, inner_marker)]
 [bc.apply(A,b) for bc in bcs]
 solve(A, T.vector(), b,'lu')
 
-
 def J_ufl(T):
     """
     Returns functional as ufl-expression for given T
     """
     return 0.5*T*T*dx
-plot(T)
-plt.show()
+
 J = assemble(J_ufl(T))
 Jhat = ReducedFunctional(J, Control(s))
-def riesz_representation(gradient):
+def save_to_file_l2(gradient):
     s.vector()[:] = gradient.get_local()
     File("output/sm_padj_s.pvd") << s
     return s
-    
-File("output/T_padj.pvd") << T
+
 s1 = Function(S)
 s1.vector()[:] = 1
-
-dJ = Jhat.derivative(options={"riesz_representation":riesz_representation})
-#dJ = Jhat.derivative(options={"riesz_representation":"l2"})
+dJ = Jhat.derivative(options={"riesz_representation":save_to_file_l2})
 
 s0 = Function(S)
 taylor_test(Jhat, s0, s1,dJdm=s1._ad_dot(dJ))
-plot(dJ)
-plt.show()
