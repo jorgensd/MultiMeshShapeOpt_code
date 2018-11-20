@@ -48,15 +48,6 @@ class PoissonSolver():
     # Helper functions for state and adjoint
     def a_s(self, T, v):
         return dot(grad(T), grad(v))*dx
-
-    def a_N(self, u, v,g, marker):
-        self.alpha = 1
-        dB = Measure("ds", domain=self.mesh, subdomain_data=self.mf)
-        n = FacetNormal(self.mesh)
-        return -inner(dot(grad(u), n), v)*dB(marker) \
-            - inner(u-g, dot(grad(v), n))*dB(marker) \
-            +self.alpha*(u-g)*v*dB(marker)
-        
         
     def l_s(self, f, v):
         return f*v*dx
@@ -80,10 +71,7 @@ class PoissonSolver():
         f.interpolate(self.f)
         
         # Define bilinear form and linear form 
-        F = self.a_s(T,v) - self.l_s(f,v) #\
-            # + self.a_N(T, v, Constant(1.0), self.inner_marker)\
-            # + self.a_N(T, v, Constant(0), self.outer_marker)
-        
+        F = self.a_s(T,v) - self.l_s(f,v)
         
         # Assemble linear system
         A = assemble(lhs(F))
@@ -135,7 +123,7 @@ class PoissonSolver():
         bc_adj.apply(self.lmb_b.vector())
         File("output/b_adjoint.pvd") << self.lmb_b
 
-        # Compute gradient
+        # The gradient, computed with the material derivative
         s = TestFunction(self.S)
         d = div(s)*(0.5*self.T*self.T+dot(grad(self.T),grad(self.lmb))
                     -f*self.lmb)*dx - inner(dot(grad(self.T),grad(s)), grad(self.lmb))*dx\
@@ -145,15 +133,20 @@ class PoissonSolver():
       
         # Hadamard version assuming strong form of gradient is fulfilled
         d_Hadamard = inner(s,n)*(0.5*self.T*self.T -inner(n, grad(self.lmb))*inner(n, grad(self.T)))*ds
+
+        # Hadamard acoording to Pyadjoint discretized paper
         # d_Hadamard = inner(s,n)*(0.5*self.T*self.T
         #                          +inner(grad(self.T),grad(self.lmb))
-        #                          -f*self.lmb
-        ) *ds
+        #                          -f*self.lmb) *ds
+
+        # Additional terms if one include the du/dn v term from the variational
+        # form after integrating by parts (not selecting the function space)
         # d_Hadamard += inner(s,n)*self.lmb*dot(grad(self.T),n)*ds
         # d_Hadamard += inner(s,n)*(dot(grad(self.T), n)*dot(grad(self.lmb_b), n)
         #                           +dot(dot(n, grad(grad(self.T))), n)
         #                           -div(grad(self.T)*self.lmb_b)
         #                           -inner(dot(grad(grad(self.T)*self.lmb_b), n), n))*ds
+        
         dJs = assemble(d)
         dJs_Hadamard = assemble(d_Hadamard)
         s = Function(self.S)
@@ -166,8 +159,8 @@ class PoissonSolver():
 
 
     
-if __name__ == '__main_
-_':
+if __name__ == '__main__':
+
     m_names = "meshes/singlemesh.xdmf"
     f_names = "meshes/mf.xdmf"
     fexp = Constant(0) #Expression('x[0]*sin(x[0])*cos(x[1])', degree=4)
