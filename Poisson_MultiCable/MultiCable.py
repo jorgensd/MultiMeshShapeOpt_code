@@ -5,6 +5,7 @@ class MultiCable():
     def __init__(self, scales, positions, lmb_core, lmb_iso, lmb_fill, fs):
         self.J = 0
         self.dJ = 0
+        self.opt_it = 0
         self.num_cables = len(scales)
         self.outT = [File("output/T_%d.pvd" %i)
                      for i in range(self.num_cables+1)]
@@ -200,10 +201,12 @@ class MultiCable():
             dJ.append(gradx)
             dJ.append(grady)
         self.dJ = numpy.array(dJ)
+        # print("Gradients")
+        # print(self.dJ)
         return self.dJ
 
-    def callback(self, positions):
-        self.eval_dJ(positons)
+    def callback(self, positions, result):
+        self.eval_dJ(positions)
         self.save_state()
         print("Iteration: %d" % self.opt_it)
         self.opt_it += 1
@@ -212,7 +215,65 @@ class MultiCable():
         print(", ".join(['{:2.8f}'.format(i).rjust(5) for i in self.dJ]))
         print("Positions")
         print(", ".join(['{:2.8f}'.format(i).rjust(5) for i in positions]))
+        return False
+    
+    def compute_dJ(self, cable_positions, directions):
+        # Compute gradient in a given direction
 
+        # Update mesh
+        self.eval_J(cable_positions)
+        dJ = []
+        # Solve adjoint equation
+        adj = TrialFunction(self.V)
+        v = TestFunction(self.V)
+        n = FacetNormal(self.multimesh)
+        h = 2.0*Circumradius(self.multimesh)
+        h = (h('+') + h('-')) / 2
+        constraint = inner(self.lmb*grad(adj), grad(v))*dX -self.c*v*adj*dX
+        # FIXME: Add derivative of alpha in ext bc constraint,only works for alpha=1
+        constraint += adj*1*v*ds# alpha_heat_transfer(T)*v*ds
+        constraint += - inner(avg(self.lmb*grad(adj)), jump(v, n))*dI \
+                      - inner(avg(self.lmb*grad(v)), jump(adj, n))*dI \
+                      + self.alpha/h*jump(adj)*jump(v)*dI   \
+                      + self.beta*self.lmb*inner(jump(grad(adj)),
+                                                 jump(grad(v)))*dO
+        constraint += self.objdT*v*dX
+        A = assemble_multimesh(lhs(constraint))
+        b = assemble_multimesh(rhs(constraint))
+        self.V.lock_inactive_dofs(A, b)
+        solve(A, self.adjT.vector(), b, 'lu')
+
+        for i, (cable_mesh, cable_facet,cable_subdomain, pert) in enumerate(
+                zip(self.cable_meshes[1:], self.cable_facets,
+                    self.cable_subdomains, directions)):
+            print(pert)
+            T_cable = self.T.part(i+1, deepcopy=True)
+            adjT_cable = self.adjT.part(i+1, deepcopy=True)
+            lmb_cable = self.lmb.part(i+1, deepcopy=True)
+            f_cable = self.f.part(i+1, deepcopy=True)
+            # Alternative to facet normal from femorph
+            from femorph import VolumeNormal
+            normal = VolumeNormal(cable_mesh, [0], cable_facet, [16,17])
+            # normal = FacetNormal(cable_mesh)("-") # Outwards pointing normal
+            dJ_Surf = self.WeakCableShapeGradSurf(T_cable, adjT_cable,
+                                                  lmb_cable, self.c, f_cable,
+                                                  n=normal)
+            dSc1 = Measure("dS", subdomain_data=cable_facet, subdomain_id=16)
+            dSc2 = Measure("dS", subdomain_data=cable_facet, subdomain_id=17)
+            gradx = assemble(normal[0]*Constant(pert[0])*dJ_Surf*dSc1
+                             +normal[0]*Constant(pert[0])*dJ_Surf*dSc2
+                             + Constant(0)*dx(domain=cable_mesh,
+                                              subdomain_data=cable_subdomain))
+            grady = assemble(normal[1]*Constant(pert[1])*dJ_Surf*dSc1
+                             +normal[1]*Constant(pert[1])*dJ_Surf*dSc2
+                             + Constant(0)*dx(domain=cable_mesh,
+                                              subdomain_data=cable_subdomain))
+
+
+            dJ.append(gradx)
+            dJ.append(grady)
+        self.dJ = numpy.array(dJ)
+        return sum(self.dJ)
     
 if __name__ == "__main__":
     lmb_metal = 205.      # Heat coefficient aluminium

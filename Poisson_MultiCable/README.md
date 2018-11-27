@@ -1,6 +1,10 @@
 # Examples in article #
 equilateral.py
 
+# Run examples
+Use the commands in the Makefile to get the results used in the article,
+i.e. `make equilateral` runs the equilateral multicable example.
+
 # Installation #
 For the examples to run, the following commands has to be run to obtain
 dolfin 2018.1.0 with a compatible IPOPT solver. It also installs femorph 2.0,
