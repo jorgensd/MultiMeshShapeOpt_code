@@ -31,8 +31,7 @@ RUN /bin/bash -c -c "source $FENICS_HOME/gmsh.conf &&\
 
 RUN /bin/bash -l -c "source $FENICS_HOME/ipopt.conf && \
                      update_ipopt && \
-                     update_pyipopt && \
-                     clean_up"
+                     update_pyipopt"
 
 
 
