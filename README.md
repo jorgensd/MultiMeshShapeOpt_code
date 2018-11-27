@@ -2,6 +2,18 @@
 Can be found at [arXiv](https://arxiv.org/pdf/1806.09821.pdf)
 
 ## Requirements
-dolfin >= 2018.1.0
-femorph (https://bitbucket.org/Epoxid/femorph/src/master/) branch simplify/femorph
-pyipopt
+- Dolfin 2018.1.0
+- Femorph (dokken/restructuring)
+- IPOPT
+
+## Installation
+A docker container can be built with all the dependencies using the command
+```
+cd dockerfiles
+docker build --tag mmshapeopt .
+cd ..
+```
+To run the enviroment with current directory as shared with
+```
+docker run -ti -v $(pwd):/home/fenics/shared mmshapeopt
+```
