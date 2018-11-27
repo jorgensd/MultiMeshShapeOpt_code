@@ -1,11 +1,7 @@
-#######################
 # Examples in article #
-#######################
 equilateral.py
 
-################
 # Installation #
-################
 For the examples to run, the following commands has to be run to obtain
 dolfin 2018.1.0 with a compatible IPOPT solver. It also installs femorph 2.0,
 where the only component needed is the VolumeNormal, a "CG1"-representation
