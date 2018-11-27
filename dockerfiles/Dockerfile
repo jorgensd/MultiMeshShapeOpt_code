@@ -17,23 +17,31 @@ ENV FEMORPH_BRANCH=dokken/restructuring
 COPY ipopt.conf $FENICS_HOME/ipopt.conf
 COPY gmsh.conf $FENICS_HOME/gmsh.conf
 COPY femorph.conf $FENICS_HOME/femorph.conf
+COPY mmshapeopt.conf $FENICS_HOME/mmshapeopt.conf
 
 USER root
 RUN apt-get update && \
 apt-get install -y libgl1-mesa-glx libxcursor1 libxft2 libxinerama1 libglu1-mesa && \
 apt-get clean
 
-RUN /bin/bash -c -c "source $FENICS_HOME/femorph.conf &&\
+RUN /bin/bash -l -c "source $FENICS_HOME/mmshapeopt.conf"
+
+RUN /bin/bash -l -c "source $FENICS_HOME/mmshapeopt.conf &&\
+                     source $FENICS_HOME/femorph.conf &&\
                      install_femorph "
 
-RUN /bin/bash -c -c "source $FENICS_HOME/gmsh.conf &&\
+RUN /bin/bash -l -c "source $FENICS_HOME/gmsh.conf &&\
                      get_gmsh "
 
-RUN /bin/bash -l -c "source $FENICS_HOME/ipopt.conf && \
+RUN /bin/bash -l -c "source $FENICS_HOME/mmshapeopt.conf && \
+                     source $FENICS_HOME/ipopt.conf && \
                      update_ipopt && \
                      update_pyipopt"
 
+USER fenics
+RUN echo "source $FENICS_HOME/mmshapeopt.conf" >> $FENICS_HOME/.bash_profile
+RUN /bin/bash -l -c "python3 -c \"import dolfin; import pyipopt\""
+RUN /bin/bash -l -c "python3 -c \"import femorph\""
+RUN /bin/bash -l -c "gmsh -version"
 
-
-
-
+USER root
