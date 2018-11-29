@@ -3,7 +3,6 @@ import numpy
 
 class MultiCable():
     def __init__(self, scales, positions, lmb_core, lmb_iso, lmb_fill, fs):
-        self.out_m1 = File("output/m_1.pvd")
         self.J = 0
         self.dJ = 0
         self.opt_it = 0
@@ -100,7 +99,7 @@ class MultiCable():
         """ The Riez representer of the shape-surface gradient at an interface
         """
         # ("-") are exterior quantitites, [ ]_{+-}=-jump( )
-        grad_tau_adjT = grad(adjT("-"))-dot(n,grad(adjT("-")))*n
+        grad_tau_adjT = grad(adjT("-"))-dot(grad(adjT("-")),n)*n
         grad_tau_T = grad(T("-"))-dot(grad(T("-")),n)*n
         dJ = inner(grad_tau_T, grad_tau_adjT)*jump(lmb)\
              - adjT("-")*(jump(f)
@@ -229,7 +228,7 @@ if __name__ == "__main__":
     lmb_air = 0.15        # Heat coefficient of brick
     c1 = numpy.array([0, 0.45])
     c2 = numpy.array([-0.4, -0.15])
-    c3 = numpy.array([0.2,-0.4])
+    c3 = numpy.array([-0.2,0.4])
     cable_positions = numpy.array([c1[0],c1[1],c2[0],c2[1],c3[0],c3[1]])
     scales = numpy.array([1,1,1])   
     sources = numpy.array([5,5,5])
