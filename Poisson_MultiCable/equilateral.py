@@ -39,23 +39,19 @@ from IpoptMultiCableSolver import *
 MC = MultiCable(scales, cable_positions, lmb_metal, lmb_insulation,
                       lmb_air, sources)
 from dolfin import plot, File
-outputs = [File("output/equilateral%d.pvd" %i)
-           for i in range(MC.multimesh.num_parts())]
 MC.eval_J(cable_positions)
+print("initial J %.3e" % MC.J)
 
-for i in range(MC.multimesh.num_parts()):
-    outputs[i] << MC.T.part(i)
 
 
 opt = MultiCableOptimization(3, scales, MC.eval_J, MC.eval_dJ)
 opt.nlp.int_option('max_iter', 30)
-opt.nlp.num_option('tol', 1e-6)
 
 opt_sol = opt.solve(cable_positions)
 
 compute_angles(opt_sol)
 MC.eval_J(opt_sol)
-
+print("Optimal J: %.2e" % MC.J)
 def plot_init_opt(init, opt,filename):
     plt.subplot(1,2,1)
     MC.eval_J(init)
