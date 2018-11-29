@@ -21,7 +21,7 @@ COPY mmshapeopt.conf $FENICS_HOME/mmshapeopt.conf
 
 USER root
 RUN apt-get update && \
-apt-get install -y libgl1-mesa-glx libxcursor1 libxft2 libxinerama1 libglu1-mesa && \
+apt-get install -y libgl1-mesa-glx libxcursor1 libxft2 libxinerama1 libglu1-mesa imagemagick python3-hdf5 python3-lxml && \
 apt-get clean
 
 RUN /bin/bash -l -c "source $FENICS_HOME/mmshapeopt.conf"
@@ -37,6 +37,9 @@ RUN /bin/bash -l -c "source $FENICS_HOME/mmshapeopt.conf && \
                      source $FENICS_HOME/ipopt.conf && \
                      update_ipopt && \
                      update_pyipopt"
+
+RUN /bin/bash -l -c "pip3 install pygmsh meshio"
+
 
 USER fenics
 RUN echo "source $FENICS_HOME/mmshapeopt.conf" >> $FENICS_HOME/.bash_profile
