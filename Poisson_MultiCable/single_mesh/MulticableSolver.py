@@ -4,8 +4,8 @@ from create_mesh import *
 from IPython import embed
 
 
-x0,y0 = 0,0
-create_multicable(x0,y0)
+cable_positions = [0,0,0.5,0.5]
+create_multicable(cable_positions)
 
 mesh = Mesh()
 with XDMFFile("multicable.xdmf") as infile:
@@ -19,6 +19,10 @@ mvc = MeshValueCollection("size_t", mesh, 2)
 with XDMFFile("cf.xdmf") as infile:
     infile.read(mvc, "name_to_read")
 cf = cpp.mesh.MeshFunctionSizet(mesh, mvc)
+
+# class MultiCable():
+#     (self, scales, positions, lmb_core, lmb_fill, fs):
+    
 
 
 embed()
