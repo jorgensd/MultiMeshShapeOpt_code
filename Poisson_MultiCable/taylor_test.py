@@ -10,11 +10,16 @@ def convergence_rates(E_values, eps_values):
     return r
 
 lmb_metal = 205.   # Heat coefficient aluminium
-lmb_insulation = 0.33 # Heat coefficient of plastic
+lmb_insulation = 0.2 # Heat coefficient of plastic
 lmb_air = 0.33   # Heat coefficient of brick
-c1 = numpy.array([0, 0.2,-0.2,-0.4])
-scales = numpy.array([1,1])   
-sources = numpy.array([25,25])
+# c1 = numpy.array([0, 0.2,-0.2,-0.4])
+c1 = numpy.array([0, 0.45])
+# c2 = numpy.array([-0.4, -0.15])
+# c3 = numpy.array([0.2,-0.4])
+# cable_positions = numpy.array([c1[0],c1[1],c2[0],c2[1],c3[0],c3[1]])
+# c1 = cable_positions
+scales = numpy.array([1])#,1,1])   
+sources = numpy.array([10])#,10,10])
 from MultiCable import *
 
 MC = MultiCable(scales, c1, lmb_metal, lmb_insulation,
@@ -25,12 +30,12 @@ for i in range(MC.multimesh.num_parts()):
 
 from dolfin import plot, File
 
-perturbation= numpy.array([0,0.65,-0.1,0.2])
+perturbation= numpy.array([0,0.4])#,-0.4,0.3,0.2,0.2])
 dJ = MC.eval_dJ(c1)
 dJp = numpy.dot(dJ, perturbation)
 J = MC.J
 
-epsilon = [0.5**(i) for i in range(10)]
+epsilon = [0.5**(i) for i in range(8)]
 res_0 = []
 res_1 = []
 outputs = [File("output/taylor%d.pvd" %i)

@@ -27,7 +27,7 @@ def plot_rates_0(lines, i, color):
 filename = "output/taylor_data.txt"
 
 i = 0
-for res in [2,3,4,5,6,7]:
+for res in [4,5,6,7]:
     if i == 0:
         suffix = ">"
     else:
@@ -43,7 +43,7 @@ colors = ["r","b", "g","k","c","m"]
 counter=0
 plt.figure()
 for i in indicies:
-    plot_rates(lines,i,colors[counter])
+    plot_rates_1(lines,i,colors[counter])
     counter+=1
 ax = plt.gca()
 ax.legend()
