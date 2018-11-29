@@ -3,6 +3,7 @@ import numpy
 
 class MultiCable():
     def __init__(self, scales, positions, lmb_core, lmb_iso, lmb_fill, fs):
+        self.out_m1 = File("output/m_1.pvd")
         self.J = 0
         self.dJ = 0
         self.opt_it = 0
@@ -22,7 +23,7 @@ class MultiCable():
         self.obj = (1./self.q)*pow(abs(self.T), self.q)*dX # Functional
         self.objdT = self.T*pow(abs(self.T), self.q-2) # Derivative of functional integrand
         self.T_amb = Constant(3.2) # Ambient Temperature
-        self.c = Constant(0.04) # Reaction coefficient
+        self.c = Constant(0.01) # Reaction coefficient
 
     def alpha_heat_transfer(self, T):
         return Constant(1.0)
@@ -60,6 +61,7 @@ class MultiCable():
             self.cable_facets.append(facets)
 
         # Create multimesh
+        self.cable_positions = positions.copy()
         self.multimesh = MultiMesh()
         for cable in self.cable_meshes:
             self.multimesh.add(cable)
@@ -99,33 +101,35 @@ class MultiCable():
         """
         # ("-") are exterior quantitites, [ ]_{+-}=-jump( )
         grad_tau_adjT = grad(adjT("-"))-dot(n,grad(adjT("-")))*n
-        grad_tau_T = grad(T("-"))-dot(n,grad(T("-")))*n
+        grad_tau_T = grad(T("-"))-dot(grad(T("-")),n)*n
         dJ = inner(grad_tau_T, grad_tau_adjT)*jump(lmb)\
              - adjT("-")*(jump(f)
              )\
-             - lmb("-")*dot(n,grad(adjT("-")))*dot(n,jump(grad(T)))
+             - lmb("-")*dot(n,grad(adjT("-")))*dot(jump(grad(T)),n)
 
         return -dJ
 
-    
+    @timed("USER_TIMING: Update meshes")
     def update_mesh(self,cable_positions):
         """ Translate all new_cables to a new center """
-        cable_positions = cable_positions.reshape(-1, 2)
-        for i, ((newx, newy), cable_mesh, cable_facet) in enumerate(
-                zip(cable_positions, self.cable_meshes[1:], self.cable_facets)):
-        # Move mesh to new positions
-            dSc = Measure("dS", subdomain_data=cable_facet, subdomain_id=17)
-            area = assemble(Constant(1)*dx(domain=cable_mesh))
-            oldx = assemble(Expression("x[0]", degree=1)*dx(domain=cable_mesh))/area
-            oldy = assemble(Expression("x[1]", degree=1)*dx(domain=cable_mesh))/area
+        cable_r = cable_positions.reshape(-1, 2)
+        old_pos = self.cable_positions.reshape(-1, 2)
+        for i, ((oldx,oldy), (newx, newy),
+                cable_mesh) in enumerate(zip(old_pos, cable_r,
+                                             self.cable_meshes[1:])):
             cable_mesh.translate(Point(-oldx+newx, -oldy+newy))
-        self.multimesh.build()  # Rebuild the multimesh
+
+        self.cable_positions = cable_positions.copy()
+
+        
 
 
     """ Evaluate the functional with given cable_positions"""
     def eval_J(self, cable_positions):
         # Update mesh
         self.update_mesh(cable_positions)
+        with Timer("USER_TIMING: REBUILD MULTIMESH") as t:
+            self.multimesh.build()  # Rebuild the multimesh
         n = FacetNormal(self.multimesh)
         h = 2.0*Circumradius(self.multimesh)
         h = (h('+') + h('-')) / 2
@@ -138,11 +142,13 @@ class MultiCable():
                       - inner(avg(self.lmb*grad(v)), jump(Ttmp, n))*dI \
                       + self.alpha/h*jump(Ttmp)*jump(v)*dI   \
                       + self.beta*self.lmb*inner(jump(grad(Ttmp)), jump(grad(v)))*dO
-        A = assemble_multimesh(lhs(constraint))
-        b = assemble_multimesh(rhs(constraint))
+        with Timer("USER_TIMING: Assemble State") as t:
+            A = assemble_multimesh(lhs(constraint))
+            b = assemble_multimesh(rhs(constraint))
         self.T.vector()[:]=0
         self.V.lock_inactive_dofs(A, b)
-        solve(A, self.T.vector(), b, 'lu')
+        with Timer("USER_TIMING: Solve State") as t:
+            solve(A, self.T.vector(), b, 'lu')
         self.J = assemble_multimesh(self.obj)
         return self.J
 
@@ -216,64 +222,6 @@ class MultiCable():
         print("Positions")
         print(", ".join(['{:2.8f}'.format(i).rjust(5) for i in positions]))
         return False
-    
-    def compute_dJ(self, cable_positions, directions):
-        # Compute gradient in a given direction
-
-        # Update mesh
-        self.eval_J(cable_positions)
-        dJ = []
-        # Solve adjoint equation
-        adj = TrialFunction(self.V)
-        v = TestFunction(self.V)
-        n = FacetNormal(self.multimesh)
-        h = 2.0*Circumradius(self.multimesh)
-        h = (h('+') + h('-')) / 2
-        constraint = inner(self.lmb*grad(adj), grad(v))*dX -self.c*v*adj*dX
-        # FIXME: Add derivative of alpha in ext bc constraint,only works for alpha=1
-        constraint += adj*1*v*ds# alpha_heat_transfer(T)*v*ds
-        constraint += - inner(avg(self.lmb*grad(adj)), jump(v, n))*dI \
-                      - inner(avg(self.lmb*grad(v)), jump(adj, n))*dI \
-                      + self.alpha/h*jump(adj)*jump(v)*dI   \
-                      + self.beta*self.lmb*inner(jump(grad(adj)),
-                                                 jump(grad(v)))*dO
-        constraint += self.objdT*v*dX
-        A = assemble_multimesh(lhs(constraint))
-        b = assemble_multimesh(rhs(constraint))
-        self.V.lock_inactive_dofs(A, b)
-        solve(A, self.adjT.vector(), b, 'lu')
-
-        for i, (cable_mesh, cable_facet,cable_subdomain, pert) in enumerate(
-                zip(self.cable_meshes[1:], self.cable_facets,
-                    self.cable_subdomains, directions)):
-            print(pert)
-            T_cable = self.T.part(i+1, deepcopy=True)
-            adjT_cable = self.adjT.part(i+1, deepcopy=True)
-            lmb_cable = self.lmb.part(i+1, deepcopy=True)
-            f_cable = self.f.part(i+1, deepcopy=True)
-            # Alternative to facet normal from femorph
-            from femorph import VolumeNormal
-            normal = VolumeNormal(cable_mesh, [0], cable_facet, [16,17])
-            # normal = FacetNormal(cable_mesh)("-") # Outwards pointing normal
-            dJ_Surf = self.WeakCableShapeGradSurf(T_cable, adjT_cable,
-                                                  lmb_cable, self.c, f_cable,
-                                                  n=normal)
-            dSc1 = Measure("dS", subdomain_data=cable_facet, subdomain_id=16)
-            dSc2 = Measure("dS", subdomain_data=cable_facet, subdomain_id=17)
-            gradx = assemble(normal[0]*Constant(pert[0])*dJ_Surf*dSc1
-                             +normal[0]*Constant(pert[0])*dJ_Surf*dSc2
-                             + Constant(0)*dx(domain=cable_mesh,
-                                              subdomain_data=cable_subdomain))
-            grady = assemble(normal[1]*Constant(pert[1])*dJ_Surf*dSc1
-                             +normal[1]*Constant(pert[1])*dJ_Surf*dSc2
-                             + Constant(0)*dx(domain=cable_mesh,
-                                              subdomain_data=cable_subdomain))
-
-
-            dJ.append(gradx)
-            dJ.append(grady)
-        self.dJ = numpy.array(dJ)
-        return sum(self.dJ)
     
 if __name__ == "__main__":
     lmb_metal = 205.      # Heat coefficient aluminium
