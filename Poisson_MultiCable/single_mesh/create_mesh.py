@@ -8,7 +8,7 @@ metal_radius = 0.2
 fill_marker = 15
 rubber_marker = 16
 metal_marker = 17
-fill = 11
+ext = 11
 metaliso = 12
 isofill = 13
 
@@ -41,7 +41,7 @@ def create_multicable(cable_pos, res=0.1):
     rubber_lines = [rubber.line_loop.lines for rubber in rubber_circles]
     rubber_flat = [val for sublist in rubber_lines for val in sublist]
     geo.add_physical_line(rubber_flat, label=isofill)
-    geo.add_physical_line(fill_circle.line_loop.lines, label=fill)
+    geo.add_physical_line(fill_circle.line_loop.lines, label=ext)
     
     (points, cells, point_data,
      cell_data, field_data) = pygmsh.generate_mesh(geo, prune_z_0=True,
