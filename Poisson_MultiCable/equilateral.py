@@ -1,4 +1,7 @@
 import numpy
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from IPython import embed
 
 def compute_angles(cable_positions):
     """
@@ -39,6 +42,7 @@ from dolfin import plot, File
 outputs = [File("output/equilateral%d.pvd" %i)
            for i in range(MC.multimesh.num_parts())]
 MC.eval_J(cable_positions)
+
 for i in range(MC.multimesh.num_parts()):
     outputs[i] << MC.T.part(i)
 
@@ -47,9 +51,52 @@ opt = MultiCableOptimization(3, scales, MC.eval_J, MC.eval_dJ)
 opt.nlp.int_option('max_iter', 30)
 opt.nlp.num_option('tol', 1e-6)
 
+
+def plot_cable(positions):
+    MC.eval_J(positions)
+    fig = plt.figure()
+    ax = fig.gca()
+    # Strip T of inactive dofs values
+    T_arr = MC.T.vector().get_local()
+    inactive = MC.T.function_space().dofmap().inactive_dofs(MC.multimesh, 0)
+    T_stripped = [val for idx, val in enumerate(T_arr)
+                       if idx not in inactive]
+    T_min = numpy.min(T_stripped)
+    T_max = numpy.max(T_stripped)
+    norm = mpl.colors.Normalize(vmin=T_min, vmax=T_max)
+    N = 512 # Number of levels used in contour plot
+    p0 = plot(MC.T.part(0),norm=norm,zorder=0,
+              levels=numpy.linspace(T_min,T_max,N))
+
+    for i in range(1,MC.num_cables+1):
+        pi = plot(MC.T.part(i), zorder=i,norm=norm)
+        rubber_radius = 0.85*opt.inner_radius[i-1]
+        metal_radius = 2./3*opt.inner_radius[i-1]
+        iso_circle = plt.Circle((positions[2*(i-1)], positions[2*(i-1)+1]),
+                            radius=rubber_radius, color="k",
+                            fill=False,zorder=10+i)
+        metal_circle = plt.Circle((positions[2*(i-1)], positions[2*(i-1)+1]),
+                            radius=metal_radius, color="k",
+                            fill=False,zorder=10+i)
+
+        ax.add_patch(iso_circle)
+        ax.add_patch(metal_circle)
+    ax = fig.gca()
+    # Creating scaled colorbar from stripped data
+    m = plt.cm.ScalarMappable()
+    m.set_array(T_stripped)
+    cbar = plt.colorbar(m,boundaries=numpy.linspace(T_min,T_max,N))
+    cbar.set_clim(T_min,T_max)
+    plt.savefig("output/init_cable.png")
+    exit(1)
+
+plot_cable(cable_positions)
+exit(1)
+
 opt_sol = opt.solve(cable_positions)
 compute_angles(opt_sol)
 MC.eval_J(opt_sol)
 
-for i in range(MC.multimesh.num_parts()):
-    outputs[i] << MC.T.part(i)
+# for i in range(MC.multimesh.num_parts()):
+#     outputs[i] << MC.T.part(i)
+
