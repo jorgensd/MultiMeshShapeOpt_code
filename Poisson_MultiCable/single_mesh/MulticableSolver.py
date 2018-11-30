@@ -2,7 +2,6 @@ from dolfin import *
 from create_mesh import *
 from IPython import embed
 import numpy
-set_log_level(LogLevel.CRITICAL)
 class MultiCable():
     def __init__(self,positions, lmb_core,lmb_iso, lmb_fill, fs,res=0.01, state=None):
         if state is None:
@@ -26,7 +25,7 @@ class MultiCable():
         self.objdT = self.T*pow(abs(self.T), self.q-2)
         self.T_amb = Constant(3.2) # Ambient Temperature
         self.c = Constant(0.01) # Reaction coefficient
-
+        
     def update_mesh(self,positions):
         self.__init__(positions, self.lmb_core, self.lmb_iso,
                       self.lmb_fill, self.fs, self.res, self.state)
@@ -88,7 +87,7 @@ class MultiCable():
         v = TestFunction(self.V)
         Ttmp = TrialFunction(self.V)
         constraint = inner(self.lmb*grad(Ttmp), grad(v))*dx \
-                     -self.f*v*dX -self.c*v*Ttmp*dx
+                     -self.f*v*dx -self.c*v*Ttmp*dx
         constraint += self.alpha_heat_transfer(Ttmp)*(Ttmp-self.T_amb)*v*ds
 
         with Timer("USER_TIMING: Assemble State") as t:
@@ -171,25 +170,29 @@ def compute_angles(cable_positions):
                                   *numpy.dot(c3-c2,c3-c2))))/(2*numpy.pi)*360)
     print("Angles between the three cables: %.2f, %.2f, %.2f" %(a1,a2,a3))
 
+if __name__ == "__main__":
+    lmb_metal = 205.   # Heat coefficient aluminium
+    lmb_iso = 0.03 # Heat coefficient of plastic
+    lmb_air = 0.33   # Heat coefficient of brick
+    c1 = numpy.array([0, 0.45])
+    c2 = numpy.array([-0.4, -0.15])
+    c3 = numpy.array([0.2,-0.4])
+    cable_positions = numpy.array([c1[0],c1[1],c2[0],c2[1],c3[0],c3[1]])
+    compute_angles(cable_positions)
+    sources = numpy.array([10,10,10])
+    MC = MultiCable(cable_positions,lmb_metal,lmb_iso,lmb_air,sources,0.0176)
+    tmp_out = File("output/mesh.pvd")
+    J = MC.eval_J(cable_positions)
+    print("----Number of cells---")
+    print(MC.mesh.num_cells())
+    tmp_out << MC.mesh
+    MC.save_state()
+    print(J)
+    from Optimization import MultiCableOptimization
+    # opt = MultiCableOptimization(int(len(cable_positions)/2), MC.eval_J, MC.eval_dJ)
+    # sol = opt.solve(cable_positions)
+    # compute_angles(sol)
+    # MC.eval_J(sol)
+    # tmp_out << MC.mesh
+    list_timings(TimingClear.keep, [TimingType.wall])
 
-lmb_metal = 205.   # Heat coefficient aluminium
-lmb_iso = 0.03 # Heat coefficient of plastic
-lmb_air = 0.33   # Heat coefficient of brick
-c1 = numpy.array([0, 0.45])
-c2 = numpy.array([-0.4, -0.15])
-c3 = numpy.array([0.2,-0.4])
-cable_positions = numpy.array([c1[0],c1[1],c2[0],c2[1],c3[0],c3[1]])
-compute_angles(cable_positions)
-sources = numpy.array([10,10,10])
-MC = MultiCable(cable_positions,lmb_metal,lmb_iso,lmb_air,sources,0.0176)
-tmp_out = File("output/mesh.pvd")
-J = MC.eval_J(cable_positions)
-tmp_out << MC.mesh
-MC.save_state()
-print(J)
-from Optimization import MultiCableOptimization
-opt = MultiCableOptimization(int(len(cable_positions)/2), MC.eval_J, MC.eval_dJ)
-sol = opt.solve(cable_positions)
-compute_angles(sol)
-MC.eval_J(sol)
-tmp_out << MC.mesh

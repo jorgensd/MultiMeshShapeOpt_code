@@ -1,6 +1,6 @@
 import pygmsh
 import meshio
-from dolfin import timed
+from dolfin import timed, Timer
 from IPython import embed
 outer_radius = 1.2
 rubber_radius = 0.255
@@ -47,10 +47,11 @@ def create_multicable(cable_pos, res=0.1):
 
     # geo.add_physical_line(rubber_flat, label=isofill)
     geo.add_physical_line(fill_circle.line_loop.lines, label=ext)
-    
-    (points, cells, point_data,
-     cell_data, field_data) = pygmsh.generate_mesh(geo, prune_z_0=True,
-                                                   verbose=False)
+
+    with Timer("USER_TIMING: Generate mesh") as t:
+        (points, cells, point_data,
+         cell_data, field_data) = pygmsh.generate_mesh(geo, prune_z_0=True,
+                                                       verbose=False)
 
     meshio.write("multicable.xdmf",
                  meshio.Mesh(points=points, cells={"triangle": cells["triangle"]}))
