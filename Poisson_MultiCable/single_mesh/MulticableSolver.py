@@ -189,10 +189,10 @@ if __name__ == "__main__":
     MC.save_state()
     print(J)
     from Optimization import MultiCableOptimization
-    # opt = MultiCableOptimization(int(len(cable_positions)/2), MC.eval_J, MC.eval_dJ)
-    # sol = opt.solve(cable_positions)
-    # compute_angles(sol)
-    # MC.eval_J(sol)
-    # tmp_out << MC.mesh
+    opt = MultiCableOptimization(int(len(cable_positions)/2), MC.eval_J, MC.eval_dJ)
+    sol = opt.solve(cable_positions)
+    compute_angles(sol)
+    MC.eval_J(sol)
+    tmp_out << MC.mesh
     list_timings(TimingClear.keep, [TimingType.wall])
 
