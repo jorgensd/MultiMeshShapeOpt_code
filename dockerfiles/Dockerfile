@@ -21,7 +21,7 @@ COPY mmshapeopt.conf $FENICS_HOME/mmshapeopt.conf
 
 USER root
 RUN apt-get update && \
-apt-get install -y libgl1-mesa-glx libxcursor1 libxft2 libxinerama1 libglu1-mesa imagemagick python3-hdf5 python3-lxml && \
+apt-get install -y libgl1-mesa-glx libxcursor1 libxft2 libxinerama1 libglu1-mesa imagemagick python3-h5py python3-lxml && \
 apt-get clean
 
 RUN /bin/bash -l -c "source $FENICS_HOME/mmshapeopt.conf"
