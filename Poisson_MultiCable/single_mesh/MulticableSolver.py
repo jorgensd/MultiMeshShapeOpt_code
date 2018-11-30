@@ -5,8 +5,11 @@ import numpy
 
 
 class MultiCable():
-    def __init__(self,positions, lmb_core,lmb_iso, lmb_fill, fs,res=0.01):
-        self.state = File("output/state.pvd")
+    def __init__(self,positions, lmb_core,lmb_iso, lmb_fill, fs,res=0.01, state=None):
+        if state is None:
+            self.state = File("output/state.pvd")
+        else:
+            self.state = state
         self.J = 0
         self.dJ = 0
         self.num_cables = int(len(positions)/2)
@@ -14,6 +17,7 @@ class MultiCable():
         self.lmb_core = lmb_core
         self.lmb_iso = lmb_iso
         self.lmb_fill = lmb_fill
+        self.fs = fs
         self.init_mesh(positions,res=res)
         self.init_source_and_heat_coeff(fs, lmb_core, lmb_iso, lmb_fill)
         self.T = Function(self.V, name="Temperature")
@@ -24,7 +28,12 @@ class MultiCable():
         self.T_amb = Constant(3.2) # Ambient Temperature
         self.c = Constant(0.01) # Reaction coefficient
 
+    def update_mesh(self,positions):
+        self.__init__(positions, self.lmb_core, self.lmb_iso,
+                      self.lmb_fill, self.fs, self.res, self.state)
+
     def init_mesh(self, positions,res):
+        self.res = res
         create_multicable(positions,res)
         self.mesh = Mesh()
         with XDMFFile("multicable.xdmf") as infile:
@@ -75,7 +84,8 @@ class MultiCable():
 
         return -dJ
 
-    def eval_J(self):
+    def eval_J(self, positions):
+        self.update_mesh(positions)
         # Evaluate J at current position
         n = FacetNormal(self.mesh)
         v = TestFunction(self.V)
@@ -95,7 +105,7 @@ class MultiCable():
 
     def save_state(self):
         self.state << self.T
-
+    
     # Evaluate the shape gradient
     def eval_dJ(self):
         dJ = []
@@ -152,9 +162,12 @@ lmb_air = 0.33   # Heat coefficient of brick
 cs = numpy.array([0, 0.45])
 sources = numpy.array([10])
 MC = MultiCable(cs,lmb_metal,lmb_iso,lmb_air,sources,0.01875)
-J = MC.eval_J()
+J = MC.eval_J(cs)
 MC.save_state()
 print(J)
 print(MC.eval_dJ())
-
+J = MC.eval_J([-0.2,0.8])
+print(J)
+MC.save_state()
+embed()
 
