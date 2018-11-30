@@ -106,4 +106,8 @@ def plot_cable(positions,N):
     cbar.set_clim(T_min,T_max)
     plt.axis("off")
 
+    
 plot_init_opt(cable_positions, opt_sol,"output/equilateral.png")
+for i in multimesh.num_parts():
+    File("single_mesh/output/opt_mc%d.pvd" %i) << multimesh.part(i)
+list_timings(TimingClear.clear, [TimingType.wall])
