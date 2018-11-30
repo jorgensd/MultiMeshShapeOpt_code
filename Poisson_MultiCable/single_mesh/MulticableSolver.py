@@ -2,8 +2,8 @@ from dolfin import *
 from create_mesh import *
 from IPython import embed
 import numpy
-
-
+tmp_out = File("output/mesh.pvd")
+set_log_level(LogLevel.CRITICAL)
 class MultiCable():
     def __init__(self,positions, lmb_core,lmb_iso, lmb_fill, fs,res=0.01, state=None):
         if state is None:
@@ -31,7 +31,8 @@ class MultiCable():
     def update_mesh(self,positions):
         self.__init__(positions, self.lmb_core, self.lmb_iso,
                       self.lmb_fill, self.fs, self.res, self.state)
-
+        tmp_out << self.mesh
+    
     def init_mesh(self, positions,res):
         self.res = res
         create_multicable(positions,res)
@@ -107,7 +108,8 @@ class MultiCable():
         self.state << self.T
     
     # Evaluate the shape gradient
-    def eval_dJ(self):
+    def eval_dJ(self, positions):
+        self.eval_J(positions)
         dJ = []
         # Solve adjoint equation
         adj = TrialFunction(self.V)
@@ -123,28 +125,27 @@ class MultiCable():
 
 
         # Alternative to facet normal from femorph
-        from femorph import VolumeNormal
-        normal = VolumeNormal(self.mesh, [0], self.mf, [metaliso,isofill])
-        File("n.pvd") << normal
+        # from femorph import VolumeNormal
+        # normal = VolumeNormal(self.mesh, [0], self.mf, [metaliso,isofill])
+        # File("n.pvd") << normalu
         # normal = FacetNormal(cable_mesh)("-") # Outwards pointing normal
         dJ_Surf = self.WeakCableShapeGradSurf(self.T, self.adjT,
                                               self.lmb, self.c, self.f,
-                                              n=normal)
-        dSc1 = Measure("dS", subdomain_data=self.mf, subdomain_id=metaliso)
-        dSc2 = Measure("dS", subdomain_data=self.mf, subdomain_id=isofill)
-        # note volume normal is in opposite direction of MultiMesh
-        gradx = assemble(-normal[0]*dJ_Surf*dSc1
-                         -normal[0]*dJ_Surf*dSc2
-                         + Constant(0)*dx(domain=self.mesh,
-                                          subdomain_data=self.cf))
-        grady = assemble(-normal[1]*dJ_Surf*dSc1
-                         -normal[1]*dJ_Surf*dSc2
-                         + Constant(0)*dx(domain=self.mesh,
-                                          subdomain_data=self.cf))
-        
-        
-        dJ.append(gradx)
-        dJ.append(grady)
+                                              n=n("-"))
+        for i in range(self.num_cables):
+            dSc1 = Measure("dS", subdomain_data=self.mf, subdomain_id=metaliso+i)
+            dSc2 = Measure("dS", subdomain_data=self.mf, subdomain_id=isofill+i)
+            # note volume normal is in opposite direction of MultiMesh
+            gradx = assemble(-n[0]("+")*dJ_Surf*dSc1
+                             -n[0]("+")*dJ_Surf*dSc2
+                             + Constant(0)*dx(domain=self.mesh,
+                                              subdomain_data=self.cf))
+            grady = assemble(-n[1]("+")*dJ_Surf*dSc1
+                             -n[1]("+")*dJ_Surf*dSc2
+                             + Constant(0)*dx(domain=self.mesh,
+                                              subdomain_data=self.cf))
+            dJ.append(gradx)
+            dJ.append(grady)
         self.dJ = numpy.array(dJ)
         return self.dJ
 
@@ -159,15 +160,17 @@ def convergence_rates(E_values, eps_values):
 lmb_metal = 205.   # Heat coefficient aluminium
 lmb_iso = 0.2 # Heat coefficient of plastic
 lmb_air = 0.33   # Heat coefficient of brick
-cs = numpy.array([0, 0.45])
-sources = numpy.array([10])
-MC = MultiCable(cs,lmb_metal,lmb_iso,lmb_air,sources,0.01875)
-J = MC.eval_J(cs)
+c1 = numpy.array([0, 0.45])
+c2 = numpy.array([-0.4, -0.15])
+c3 = numpy.array([0.2,-0.4])
+cable_positions = numpy.array([c1[0],c1[1],c2[0],c2[1],c3[0],c3[1]])
+
+sources = numpy.array([10,10,10])
+MC = MultiCable(cable_positions,lmb_metal,lmb_iso,lmb_air,sources,0.05)
+J = MC.eval_J(cable_positions)
 MC.save_state()
 print(J)
-print(MC.eval_dJ())
-J = MC.eval_J([-0.2,0.8])
-print(J)
-MC.save_state()
-embed()
+from Optimization import MultiCableOptimization
+opt = MultiCableOptimization(int(len(cable_positions)/2), MC.eval_J, MC.eval_dJ)
+sol = opt.solve(cable_positions)
 

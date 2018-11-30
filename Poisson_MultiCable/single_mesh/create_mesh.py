@@ -9,8 +9,8 @@ fill_marker = 15
 rubber_marker = 16
 metal_marker = 17
 ext = 11
-metaliso = 12
-isofill = 13
+metaliso = 100
+isofill = 200
 
 @timed("USER_TIMING: Creating mesh")
 def create_multicable(cable_pos, res=0.1):
@@ -25,6 +25,10 @@ def create_multicable(cable_pos, res=0.1):
                                              , rubber_radius,
                                              lcar=res/2,
                                              holes=[metal_circles[i]]))
+        geo.add_physical_line(metal_circles[i].line_loop.lines,
+                              label=metaliso+i)
+        geo.add_physical_line(rubber_circles[i].line_loop.lines,
+                              label=isofill+i)
     fill_circle = geo.add_circle((0,0,0), outer_radius, lcar=res
                                  ,holes=metal_circles+rubber_circles)
 
@@ -34,18 +38,20 @@ def create_multicable(cable_pos, res=0.1):
                              , label=rubber_marker)
     geo.add_physical_surface(fill_circle.plane_surface, label=fill_marker)
 
-    metal_lines = [metal.line_loop.lines for metal in metal_circles]
-    metal_flat = [val for sublist in metal_lines for val in sublist]
-    geo.add_physical_line(metal_flat, label=metaliso)
+    # metal_lines = [metal.line_loop.lines for metal in metal_circles]
+    # metal_flat = [val for sublist in metal_lines for val in sublist]
+    # rubber_lines = [rubber.line_loop.lines for rubber in rubber_circles]
+    # rubber_flat = [val for sublist in rubber_lines for val in sublist]
+    # for i in range(num_cables):
+    #     geo.add_physical_line(metal_flat[i], label=metaliso+i)
 
-    rubber_lines = [rubber.line_loop.lines for rubber in rubber_circles]
-    rubber_flat = [val for sublist in rubber_lines for val in sublist]
-    geo.add_physical_line(rubber_flat, label=isofill)
+    # geo.add_physical_line(rubber_flat, label=isofill)
     geo.add_physical_line(fill_circle.line_loop.lines, label=ext)
     
     (points, cells, point_data,
      cell_data, field_data) = pygmsh.generate_mesh(geo, prune_z_0=True,
-                                                   geo_filename="test.geo")
+                                                   verbose=False)
+
     meshio.write("multicable.xdmf",
                  meshio.Mesh(points=points, cells={"triangle": cells["triangle"]}))
     meshio.write("mf.xdmf", meshio.Mesh(
@@ -56,4 +62,5 @@ def create_multicable(cable_pos, res=0.1):
         points=points, cells={"triangle": cells["triangle"]},
         cell_data={"triangle": {"name_to_read":
                                 cell_data["triangle"]["gmsh:physical"]}}))
-    
+if __name__ == "__main__":
+    create_multicable([0.1,0.1,-0.6,-0.7])
