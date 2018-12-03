@@ -1,6 +1,7 @@
 from dolfin import *
 from create_mesh import *
 from IPython import embed
+import matplotlib.pyplot as plt
 import numpy
 class MultiCable():
     def __init__(self,positions, lmb_core,lmb_iso, lmb_fill, fs,res=0.01, state=None):
@@ -58,12 +59,15 @@ class MultiCable():
         W = FunctionSpace(self.mesh, "DG", 0)
         self.f = Function(W)
         for i in range(self.num_cables):
-            self.f.vector()[:] = (rubber_marker < self.cf.array())*(sources[i])
+            self.f.vector()[:] += (int(metal_marker+i) == self.cf.array())*(sources[i])
         self.lmb = Function(W)
         for i in range(self.num_cables):
-            self.lmb.vector()[:] = ((self.cf.array() == rubber_marker)*iso[i] + 
-                                    (self.cf.array() == fill_marker)*fill +
-                                    (self.cf.array() == metal_marker)*metal[i])
+            self.lmb.vector()[:] += ((self.cf.array() == int(rubber_marker+i))
+                                     *iso[i] +
+                                     (self.cf.array() == int(metal_marker+i))
+                                     *metal[i])
+        self.lmb.vector()[:] +=  (self.cf.array() == int(fill_marker))*fill 
+            
     def alpha_heat_transfer(self, T):
         return Constant(1.0)
 
@@ -79,6 +83,41 @@ class MultiCable():
              - lmb("-")*dot(n,grad(adjT("-")))*dot(jump(grad(T)),n)
 
         return -dJ
+
+    def GradientVol(self):
+        Lagrangian = inner(self.lmb*grad(self.T), grad(self.adjT))*dx \
+                     -self.f*self.adjT*dx -self.c*self.T*self.adjT*dx
+        Lagrangian += self.alpha_heat_transfer(self.T)*(self.T-self.T_amb)*self.adjT*ds
+        Lagrangian += self.obj
+        dL = derivative(Lagrangian, SpatialCoordinate(self.mesh))
+        S = VectorFunctionSpace(self.mesh, "CG", 1)
+        s = Function(S)
+        s.vector()[:] = assemble(dL).get_local()
+        File("output/sout.pvd") << s
+        dJx, dJy = [], []
+        for i in range(self.num_cables):
+            dxM = Measure("dx", domain=self.mesh,
+                          subdomain_data=self.cf, subdomain_id=metal_marker+i)
+            dxI = Measure("dx", domain=self.mesh,
+                          subdomain_data=self.cf, subdomain_id=rubber_marker+i)
+            sx = Function(S)
+            s_tmp = Function(VectorFunctionSpace(mesh, "DG",0))
+            s_tmp.vector()[:] =  (int(metal_marker+i) == self.cf.array())*1\
+                + int(rubber_marker+i) == self.cf.array()
+            dLx = derivative(Lagrangian, SpatialCoordinate(self.mesh), sx)
+            File("output/sx.pvd") << sx
+
+            sy = Function(S)
+            a = inner(u,v)*dxM + inner(u,v)*dxI
+            l = inner(Constant((1,0)),v)*dxM + inner(Constant((1,0)),v)*dxI
+            solve(a==l, sy)
+            dLy = derivative(Lagrangian, SpatialCoordinate(self.mesh), sx)
+
+            dJx.append(assemble(dLx))
+            dJy.append(assemble(dLy))
+
+        t = TestFunction(S)
+        # L_hand = div(t)*inner(self.lmb*grad(self.T),grad(self.adjT)
 
     def eval_J(self, positions):
         self.update_mesh(positions)
@@ -118,7 +157,8 @@ class MultiCable():
         b = assemble(rhs(constraint))
         solve(A, self.adjT.vector(), b, 'lu')
 
-
+        #self.GradientVol()
+        #exit()
         # Alternative to facet normal from femorph
         # from femorph import VolumeNormal
         # normal = VolumeNormal(self.mesh, [0], self.mf, [metaliso,isofill])
@@ -180,7 +220,7 @@ if __name__ == "__main__":
     cable_positions = numpy.array([c1[0],c1[1],c2[0],c2[1],c3[0],c3[1]])
     compute_angles(cable_positions)
     sources = numpy.array([10,10,10])
-    MC = MultiCable(cable_positions,lmb_metal,lmb_iso,lmb_air,sources,0.0176)
+    MC = MultiCable(cable_positions,lmb_metal,lmb_iso,lmb_air,sources,0.014)
     tmp_out = File("output/mesh.pvd")
     J = MC.eval_J(cable_positions)
     print("----Number of cells---")
