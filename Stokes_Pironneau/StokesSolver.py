@@ -293,7 +293,7 @@ if __name__ == "__main__":
         search = moola.linesearch.ArmijoLineSearch(start_stp=0.05,stpmax=1,
                                                    stpmin=1e-9)
         outmesh = File("output/steepest.pvd")
-        max_opts = 5
+        max_opts = 3
         max_it = 100
         opts = 0
         solver.solve()
@@ -312,7 +312,7 @@ if __name__ == "__main__":
             for j in range(1,solver.N):
                 dJ_i += assemble(action(solver.dJ_form[j-1],
                                         solver.deformation[j-1]))
-            
+            print("Gradient at current iteration {0:.2e}".format(dJ_i))
             def J_steepest(step):
                 solver.update_multimesh(step)
                 solver.solve()
@@ -322,6 +322,15 @@ if __name__ == "__main__":
 
             def dJ0_steepest():
                 return float(J_i), dJ_i
+
+            def increase_opt_number():                
+                solver.vfac*=2
+                solver.bfac*=2
+                if opts < max_opts:
+                    return True
+                else:
+                    print("{0:d} optimizations done, exiting".format(opts))
+                    return False
 
             try:
                 step_a = search.search(J_steepest, None, dJ0_steepest())
@@ -338,22 +347,20 @@ if __name__ == "__main__":
                                      .format(1e-6))
             except Warning:
                 print("Linesearch could not find descent direction")
-                print("Reset mesh and restart with stricter penalty")
-                solver.vfac*=2
-                solver.bfac*=2
-                solver.get_checkpoint()
-                if opts < max_opts:
-                      opts +=1
+                print("Restart with stricter penalty")
+                if not increase_opt_number():
+                    break
                 else:
-                      break
+                    search.start_stp=0.05
+                    opts+=1
+                    J_i = 1e3*J_it[-1]
             except ValueError:
                 print("Minimal relative decrease reached")
-                print("Reset mesh and restart with stricter penalty")
-                solver.vfac*=2
-                solver.bfac*=2
-                solver.get_checkpoint()
-                if opts < max_opts:
-                      opts +=1
+                print("Increase volume and barycenter penalty")
+                if not increase_opt_number():
+                    break
                 else:
-                      break
+                    search.start_stp=0.05
+                    opts+=1
+                    J_i = 1e3*J_it[-1]
     steepest_descent()
