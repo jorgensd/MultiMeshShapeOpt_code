@@ -142,9 +142,6 @@ class ElasticitySolver():
         a = inner(self.sigma, grad(self.v))*dx
         L = inner(self.f,self.v)*dx
         solve(a==L, self.u_, bcs=bc)
-        # Assemble system
-        plot(self.u_)
-        show()
 
         
 if __name__ == "__main__":
