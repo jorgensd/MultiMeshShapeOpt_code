@@ -80,7 +80,7 @@ class ElasticitySolver():
         Compute mu as according to arxiv paper
         https://arxiv.org/pdf/1509.08601.pdf
         """
-        mu_min=Constant(1)
+        mu_min=Constant(400)
         mu_max=Constant(500)
         if constant:
                 self.mu = mu_max
@@ -142,7 +142,7 @@ class ElasticitySolver():
         a = inner(self.sigma, grad(self.v))*dx
         L = inner(self.f,self.v)*dx
         solve(a==L, self.u_, bcs=bc)
-
+        plot(self.u_)
         
 if __name__ == "__main__":
     mesh = Mesh()

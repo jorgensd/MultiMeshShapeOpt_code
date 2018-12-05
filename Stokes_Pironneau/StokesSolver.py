@@ -288,9 +288,10 @@ if __name__ == "__main__":
                      "Free": outer_marker}}
     length_width = [L, H]
     solver = StokesSolver(meshes, mfs, cover, bc_dict, move_dict, length_width)
+    start_stp = 2.5e-2
     def steepest_descent():
         o_u = [File("output/u_mesh%d.pvd" %i) for i in range(solver.N)]
-        search = moola.linesearch.ArmijoLineSearch(start_stp=0.05,stpmax=1,
+        search = moola.linesearch.ArmijoLineSearch(start_stp=start_stp,stpmax=1,
                                                    stpmin=1e-9)
         outmesh = File("output/steepest.pvd")
         max_opts = 3
@@ -351,9 +352,13 @@ if __name__ == "__main__":
                 if not increase_opt_number():
                     break
                 else:
-                    search.start_stp=0.05
+                    # Reset linesearch
+                    search.start_stp=start_stp
                     opts+=1
-                    J_i = 1e3*J_it[-1]
+                    # In new optimization run, the deformed geometry
+                    # should not have a higher functional value than the first
+                    # iteration
+                    J_i = J_it[0]
             except ValueError:
                 print("Minimal relative decrease reached")
                 print("Increase volume and barycenter penalty")
@@ -362,5 +367,7 @@ if __name__ == "__main__":
                 else:
                     search.start_stp=0.05
                     opts+=1
-                    J_i = 1e3*J_it[-1]
+                    solver.solve()
+                    solver.eval_J()
+                    J_i = solver.J # Old solution with new penalization 
     steepest_descent()
