@@ -66,10 +66,6 @@ class StokesSolver():
         self.bfac = 1e1
         self.length_width = length_width
         self.__init_geometric_quantities()
-        # FIXME: This hasen't been fully implemented as it is a complex subject not suitable
-        #for this paper
-        # self.backup = [self.multimesh.part(i).coordinates().copy() for i in range(1,self.N)]
-        # self.create_mapping_for_moving_boundary()
         
         
     def __init_multimesh(self, meshes, cover_points):
@@ -115,32 +111,7 @@ class StokesSolver():
                             - assemble_multimesh(x*dX))/self.Vol0)
         self.by0 = Constant((0.5*self.length_width[1]
                             - assemble_multimesh(y*dX))/self.Vol0)
-        print(float(self.Vol0), float(self.bx0), float(self.by0))
 
-    # FIXME: This hasen't been fully implemented as it is a complex subject not suitable
-    #for this paper
-    # def create_mapping_for_moving_boundary(self):
-    #     """ Create a map from the boundary mesh vector function to the array
-    #     of design variables
-    #     """
-    #     self.design_map = []
-    #     self.dJ_array = []
-    #     for j in range(1, self.N):
-    #         tmp_bcs = []
-    #         S = VectorFunctionSpace(self.multimesh.part(j), "CG",1)
-    #         s_tmp = Function(S)
-    #         for marker in self.move_dict[j]["Deform"]:
-    #             tmp_bcs.append(DirichletBC(S, Constant((1,1)), self.mf, marker))
-    #         [bc.apply(s_tmp.vector()) for bc in tmp_bcs]
-    #         arr = s_tmp.vector().get_local()
-    #         design_to_vec = {}
-    #         c = 0
-    #         for i in range(len(s_tmp.vector().get_local())):
-    #             if arr[i]>0:
-    #                 design_to_vec[c] = i
-    #                 c+=1
-    #         self.design_map[j] = design_to_vec   
-    #         self.dJ_array.append(numpy.zeros(len(self.design_map[j].keys())))
     
     def geometric_quantities(self):
         """
@@ -269,38 +240,12 @@ class StokesSolver():
         from Elasticity_solver import ElasticitySolver
         self.deformation = []
         for i in range(1, self.N):
-            solver = ElasticitySolver(self.multimesh.part(i), self.mfs[i],
+            e_solver = ElasticitySolver(self.multimesh.part(i), self.mfs[i],
                                       free_marker=self.move_dict[i]["Free"],
                                       deform_marker=self.move_dict[i]["Deform"],
-                                      constant_mu=False)
-            solver.solve(self.f, -self.integrand_list[i-1])
-            self.deformation.append(solver.u_)
-
-    # FIXME: This hasen't been fully implemented as it is a complex subject not suitable for this
-    # paper
-    # def update_mesh_from_boundary_nodes(self, perturbation):
-    #     """
-    #     Deform mesh with boundary perturbation (a numpy array) given as Neumann input in a
-    #     linear elasticity deformation
-    #     """
-    #     from Elasticity_solver import ElasticitySolver
-    #     # Reset mesh
-    #     self.deformation = []
-    #     for i in range(1, self.N):
-    #         self.multimesh.part(i).coordinates()[:] = self.backup[i-1]
-    #         S = VectorFunctionSpace(self.multimesh.part(i), "CG" ,1)
-    #         s_vol = Function(S)
-    #         for j in self.design_map[i].keys():
-    #             s_vol.vector()[self.design_map[j]] = perturbation[j]
-    #         e_solver = ElasticitySolver(self.multimesh.part(i), self.mfs[i],
-    #                                     free_marker=self.move_dict[i]["Free"],
-    #                                     deform_marker=self.move_dict[i]["Deform"],
-    #                                     constant_mu=False)
-    #         e_solver.solve(self.f, s_vol)
-    #         self.deformation.append(e_solver.u_)
-    #         plot(e_solver.u_)
-    #         show()
-    #         ALE.move(multimesh.part(i), e_solver.u_)
+                                        constant_mu=False)
+            e_solver.solve(self.f, -self.integrand_list[i-1])
+            self.deformation.append(e_solver.u_)
 
     def get_checkpoint(self):
         for i in range(1,self.N):
@@ -318,12 +263,6 @@ class StokesSolver():
         self.multimesh.build()
         for key in self.cover_points.keys():
             self.multimesh.auto_cover(key, self.cover_points[key])
-    # FIXME: This hasen't been fully implemented as it is a complex subject
-    # not suitable for this paper
-    # def eval_scipy_J(self, perturbation):
-    #     self.update_mesh_from_boundary_nodes(perturbation)
-    #     print("a")
-    #     exit(1)
         
 if __name__ == "__main__":
     meshes = []
@@ -350,18 +289,23 @@ if __name__ == "__main__":
     length_width = [L, H]
     solver = StokesSolver(meshes, mfs, cover, bc_dict, move_dict, length_width)
     def steepest_descent():
-        o_u = [File("output/u_mesh%d.pvd" %i) for i in range(solver.N)] 
-        start_step = 9e-4
-        search = moola.linesearch.ArmijoLineSearch(start_stp=start_step,stpmax=1,
+        o_u = [File("output/u_mesh%d.pvd" %i) for i in range(solver.N)]
+        search = moola.linesearch.ArmijoLineSearch(start_stp=0.05,stpmax=1,
                                                    stpmin=1e-9)
-        for i in range(10):
-            solver.solve()
-            solver.eval_J()
+        outmesh = File("output/steepest.pvd")
+        max_opts = 5
+        max_it = 100
+        opts = 0
+        solver.solve()
+        solver.eval_J()
+        J_it = [solver.J]
+        J_i = J_it[0]
+        for i in range(1,max_it):
+            outmesh << solver.multimesh.part(1)
             for k in range(solver.N):
                 o_u[k] << solver.u.part(k)
-            J_i = solver.J
-            plot(solver.multimesh.part(1))
-            print("It: {0:1d}, J: {1:.2f}".format(i, J_i))
+            print("-"*10)
+            print("It: {0:1d}, J: {1:.5f}".format(i, J_i))
             solver.recompute_dJ()
             solver.generate_mesh_deformation()
             dJ_i = 0
@@ -377,37 +321,39 @@ if __name__ == "__main__":
                 return float(solver.J)
 
             def dJ0_steepest():
-                print(dJ_i)
                 return float(J_i), dJ_i
 
-            step_a = search.search(J_steepest, None, dJ0_steepest())
-            print(step_a)
-            solver.update_multimesh(step_a)
-            solver.set_checkpoint()
-            plot(solver.multimesh.part(1),color="r")
-            show()
+            try:
+                step_a = search.search(J_steepest, None, dJ0_steepest())
+                print("Linesearch found decreasing step: {0:.2e}".format(step_a))
+                solver.update_multimesh(step_a)
+                solver.set_checkpoint()
+                solver.solve()
+                solver.eval_J()
+                J_i = solver.J
+                J_it.append(J_i)
+                rel_reduction = abs(J_it[-1]-J_it[-2])/abs(J_it[-2])
+                if rel_reduction < 1e-6:
+                    raise ValueError("Relative reduction less than {0:1e1}"
+                                     .format(1e-6))
+            except Warning:
+                print("Linesearch could not find descent direction")
+                print("Reset mesh and restart with stricter penalty")
+                solver.vfac*=2
+                solver.bfac*=2
+                solver.get_checkpoint()
+                if opts < max_opts:
+                      opts +=1
+                else:
+                      break
+            except ValueError:
+                print("Minimal relative decrease reached")
+                print("Reset mesh and restart with stricter penalty")
+                solver.vfac*=2
+                solver.bfac*=2
+                solver.get_checkpoint()
+                if opts < max_opts:
+                      opts +=1
+                else:
+                      break
     steepest_descent()
-
-
-    # FIXME: This hasen't been fully implemented as it is a complex subject not suitable for this
-    # paper
-    # def scipy_optimization():
-    #     """
-    #     Using scipy and its optimization algorithms to solve the optimization problem
-    #     """
-    #     print("original J", solver.J)
-    #     from scipy.optimize import minimize
-    #     # Design variables
-    #     s_b = numpy.zeros(len(solver.design_map[0].keys()))
-    #     s_b = numpy.ones(len(s_b))
-    #     solver.eval_scipy_J(s_b)
-    #     # solver.gradient_scale = 1e-4
-    #     result = minimize(solver.eval_scipy_J, s_b,
-    #                       jac=solver.eval_scipy_dJ,
-    #                       method='BFGS',
-    #                       callback=solver.callback,
-    #                       options={'disp':True, 'maxiter':25})
-    #     print("Update geometry and restart algorithm")
-    #     # Update mesh to new perturbed mesh
-    #     solver.update_mesh_coordinates(result['x'])
-    # scipy_optimization()
