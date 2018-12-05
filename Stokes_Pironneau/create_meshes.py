@@ -109,22 +109,32 @@ def front_mesh_wedge(res=0.025):
     
     # Elliptic obstacle
     y_fac = 1
-    p1 = geometry.add_point((c_x-r_x, c_y,0),lcar=res/8)
-    pt = geometry.add_point((c_x,c_y+y_fac*r_x,0),lcar=res/4)
-    pb = geometry.add_point((c_x, c_y-y_fac*r_x,0),lcar=res/4)
-    p2 = geometry.add_point((c_x+r_x, c_y,0),lcar=res/8)
+    r_ =0.7
+    p1 = geometry.add_point((c_x-r_x, c_y,0),lcar=res/2)
+    pt1 = geometry.add_point((c_x-r_*r_x,c_y+y_fac*r_x,0),lcar=res/2)
+    pt2 = geometry.add_point((c_x+r_*r_x,c_y+y_fac*r_x,0),lcar=res/2)
+    pb1 = geometry.add_point((c_x-r_*r_x, c_y-y_fac*r_x,0),lcar=res/2)
+    pb2 = geometry.add_point((c_x+r_*r_x, c_y-y_fac*r_x,0),lcar=res/2)
+
+    p2 = geometry.add_point((c_x+r_x, c_y,0),lcar=res/2)
     # embed()
-    arc_1 = geometry.add_bspline([p1, pt, p2])
-    arc_2 = geometry.add_bspline([p2, pb, p1])
+    arc_1 = geometry.add_bspline([p1, pt1,pt2, p2])
+    arc_2 = geometry.add_bspline([p2, pb2,pb1, p1])
 
     # Surrounding mesh
     p3 = geometry.add_point((c_x-r_x-mesh_r, c_y,0),lcar=res)
     p4 = geometry.add_point((c_x+r_x+mesh_r, c_y,0),lcar=res)
-    pt_ = geometry.add_point((c_x, c_y+y_fac*r_x+mesh_r,0),lcar=res)
-    pb_ = geometry.add_point((c_x, c_y-y_fac*r_x-mesh_r,0),lcar=res)
+    pt_1 = geometry.add_point((c_x-r_*r_x*y_fac, c_y+y_fac*r_x+mesh_r,0),
+                              lcar=res)
+    pt_2 = geometry.add_point((c_x+r_*r_x*y_fac, c_y+y_fac*r_x+mesh_r,0)
+                              ,lcar=res)
+    pb_1 = geometry.add_point((c_x-r_*r_x*y_fac, c_y-y_fac*r_x-mesh_r,0),
+                              lcar=res)
+    pb_2 = geometry.add_point((c_x+r_*r_x*y_fac, c_y-y_fac*r_x-mesh_r,0),
+                              lcar=res)
 
-    arc_5 = geometry.add_bspline([p3, pt_, p4])
-    arc_6 = geometry.add_bspline([p4, pb_, p3])
+    arc_5 = geometry.add_bspline([p3, pt_1, pt_2, p4])
+    arc_6 = geometry.add_bspline([p4, pb_2, pb_1, p3])
     obstacle_loop = geometry.add_line_loop([arc_1, arc_2])
     outer_loop = geometry.add_line_loop([arc_5,arc_6])
     donut = geometry.add_plane_surface(obstacle_loop, holes = [outer_loop])
@@ -161,7 +171,7 @@ def front_mesh_unsym(res=0.025):
     # Elliptic obstacle
     p1 = geometry.add_point((c_x-r_x, c_y,0))
     p2 = geometry.add_point((c_x+r_x, c_y,0))
-    # embed()
+
     arc_1 = geometry.add_circle_arc(p1, c, p2)
     arc_2 = geometry.add_circle_arc(p2, c, p1)
 
@@ -254,6 +264,6 @@ if __name__=="__main__":
         res = 0.01
     background_mesh(res)
     # front_mesh_symmetric(res)
-    # front_mesh_unsym(res)
+    #front_mesh_unsym(res)
     front_mesh_wedge(res)
     # single_mesh(res)
