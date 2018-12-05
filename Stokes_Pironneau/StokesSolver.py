@@ -13,11 +13,11 @@ from dolfin import (ALE, cpp,
                     TestFunctions, TrialFunctions,
                     dX, dI, dI, dx, dC, dO,
                     inner, outer, grad, div, avg, jump, sym, tr, Identity,
-                    solve, set_log_level, LogLevel)
+                    solve, set_log_level, LogLevel, action)
 from IPython import embed
 from pdb import set_trace
-from numpy import nan
 from matplotlib.pyplot import show
+import moola
 set_log_level(LogLevel.ERROR)
 class StokesSolver():
     def __init__(self, meshes, facetfunctions, cover_points,
@@ -55,16 +55,22 @@ class StokesSolver():
 
         self.f = Constant([0.]*self.multimesh.part(0).geometric_dimension())
         self.N = len(meshes)
+        self.backup = [self.multimesh.part(i).coordinates().copy() for i in range(1,self.N)]
+
         self.outu = [File("output/u_%d.pvd" %i) for i in range(self.N)]
         self.outp = [File("output/p_%d.pvd" %i) for i in range(self.N)]
-
         self.J = 0
         self.dJ = 0
         self.opt_it = 0
         self.vfac = 1e4
-        self.bfac = 1e2
+        self.bfac = 1e1
         self.length_width = length_width
-        self.__init_geometric_quantities()        
+        self.__init_geometric_quantities()
+        # FIXME: This hasen't been fully implemented as it is a complex subject not suitable
+        #for this paper
+        # self.backup = [self.multimesh.part(i).coordinates().copy() for i in range(1,self.N)]
+        # self.create_mapping_for_moving_boundary()
+        
         
     def __init_multimesh(self, meshes, cover_points):
         multimesh = MultiMesh()
@@ -111,6 +117,31 @@ class StokesSolver():
                             - assemble_multimesh(y*dX))/self.Vol0)
         print(float(self.Vol0), float(self.bx0), float(self.by0))
 
+    # FIXME: This hasen't been fully implemented as it is a complex subject not suitable
+    #for this paper
+    # def create_mapping_for_moving_boundary(self):
+    #     """ Create a map from the boundary mesh vector function to the array
+    #     of design variables
+    #     """
+    #     self.design_map = []
+    #     self.dJ_array = []
+    #     for j in range(1, self.N):
+    #         tmp_bcs = []
+    #         S = VectorFunctionSpace(self.multimesh.part(j), "CG",1)
+    #         s_tmp = Function(S)
+    #         for marker in self.move_dict[j]["Deform"]:
+    #             tmp_bcs.append(DirichletBC(S, Constant((1,1)), self.mf, marker))
+    #         [bc.apply(s_tmp.vector()) for bc in tmp_bcs]
+    #         arr = s_tmp.vector().get_local()
+    #         design_to_vec = {}
+    #         c = 0
+    #         for i in range(len(s_tmp.vector().get_local())):
+    #             if arr[i]>0:
+    #                 design_to_vec[c] = i
+    #                 c+=1
+    #         self.design_map[j] = design_to_vec   
+    #         self.dJ_array.append(numpy.zeros(len(self.design_map[j].keys())))
+    
     def geometric_quantities(self):
         """
         Compute volume and  barycenter of obstacle, as long as its 
@@ -142,6 +173,7 @@ class StokesSolver():
         self.geometric_quantities()
         self.integrand_list = []
         dJ = 0
+        solver.dJ_form = []
         for i in range(1,self.N):
             # Integrand of gradient
             x = SpatialCoordinate(self.multimesh.part(i))
@@ -157,10 +189,18 @@ class StokesSolver():
             s = TestFunction(self.S[i])
 
             self.integrand_list.append(n*integrand)
-            dJ += inner(s,n)*integrand*dDeform(self.move_dict[i]["Deform"])
-        self.dJ_form = dJ
-    
-    
+            
+            dJ = inner(s,n)*integrand*dDeform(self.move_dict[i]["Deform"])
+            self.dJ_form.append(dJ)
+
+    def eval_J(self):
+        self.geometric_quantities()
+        J_s = assemble_multimesh(inner(grad(self.u),grad(self.u))*dX)
+        J_v = self.vfac*self.Voloff**2
+        J_bx = self.bfac*self.bxoff**2
+        J_by = self.bfac*self.byoff**2
+        self.J = float(J_s+J_v+J_bx+J_by)
+
     def solve(self):
         """
         Solves the stokes equation with the current multimesh
@@ -227,16 +267,64 @@ class StokesSolver():
         gradient as stress on the boundary.
         """
         from Elasticity_solver import ElasticitySolver
+        self.deformation = []
         for i in range(1, self.N):
             solver = ElasticitySolver(self.multimesh.part(i), self.mfs[i],
                                       free_marker=self.move_dict[i]["Free"],
                                       deform_marker=self.move_dict[i]["Deform"],
                                       constant_mu=False)
             solver.solve(self.f, -self.integrand_list[i-1])
-            plot(solver.u_)
-            show()
+            self.deformation.append(solver.u_)
 
+    # FIXME: This hasen't been fully implemented as it is a complex subject not suitable for this
+    # paper
+    # def update_mesh_from_boundary_nodes(self, perturbation):
+    #     """
+    #     Deform mesh with boundary perturbation (a numpy array) given as Neumann input in a
+    #     linear elasticity deformation
+    #     """
+    #     from Elasticity_solver import ElasticitySolver
+    #     # Reset mesh
+    #     self.deformation = []
+    #     for i in range(1, self.N):
+    #         self.multimesh.part(i).coordinates()[:] = self.backup[i-1]
+    #         S = VectorFunctionSpace(self.multimesh.part(i), "CG" ,1)
+    #         s_vol = Function(S)
+    #         for j in self.design_map[i].keys():
+    #             s_vol.vector()[self.design_map[j]] = perturbation[j]
+    #         e_solver = ElasticitySolver(self.multimesh.part(i), self.mfs[i],
+    #                                     free_marker=self.move_dict[i]["Free"],
+    #                                     deform_marker=self.move_dict[i]["Deform"],
+    #                                     constant_mu=False)
+    #         e_solver.solve(self.f, s_vol)
+    #         self.deformation.append(e_solver.u_)
+    #         plot(e_solver.u_)
+    #         show()
+    #         ALE.move(multimesh.part(i), e_solver.u_)
 
+    def get_checkpoint(self):
+        for i in range(1,self.N):
+            self.multimesh.part(i).coordinates()[:] = self.backup[i-1]
+
+    def set_checkpoint(self):
+        for i in range(1,self.N):
+            self.backup[i-1] = self.multimesh.part(i).coordinates().copy()
+            
+    def update_multimesh(self,step):
+        for i in range(1, self.N):
+            s_move = self.deformation[i-1].copy(True)
+            s_move.vector()[:]*=step
+            ALE.move(self.multimesh.part(i), s_move)
+        self.multimesh.build()
+        for key in self.cover_points.keys():
+            self.multimesh.auto_cover(key, self.cover_points[key])
+    # FIXME: This hasen't been fully implemented as it is a complex subject
+    # not suitable for this paper
+    # def eval_scipy_J(self, perturbation):
+    #     self.update_mesh_from_boundary_nodes(perturbation)
+    #     print("a")
+    #     exit(1)
+        
 if __name__ == "__main__":
     meshes = []
     for i in range(2):
@@ -261,6 +349,65 @@ if __name__ == "__main__":
                      "Free": outer_marker}}
     length_width = [L, H]
     solver = StokesSolver(meshes, mfs, cover, bc_dict, move_dict, length_width)
-    solver.solve()
-    solver.recompute_dJ()
-    solver.generate_mesh_deformation()
+    def steepest_descent():
+        o_u = [File("output/u_mesh%d.pvd" %i) for i in range(solver.N)] 
+        start_step = 9e-4
+        search = moola.linesearch.ArmijoLineSearch(start_stp=start_step,stpmax=1,
+                                                   stpmin=1e-9)
+        for i in range(10):
+            solver.solve()
+            solver.eval_J()
+            for k in range(solver.N):
+                o_u[k] << solver.u.part(k)
+            J_i = solver.J
+            plot(solver.multimesh.part(1))
+            print("It: {0:1d}, J: {1:.2f}".format(i, J_i))
+            solver.recompute_dJ()
+            solver.generate_mesh_deformation()
+            dJ_i = 0
+            for j in range(1,solver.N):
+                dJ_i += assemble(action(solver.dJ_form[j-1],
+                                        solver.deformation[j-1]))
+            
+            def J_steepest(step):
+                solver.update_multimesh(step)
+                solver.solve()
+                solver.eval_J()
+                solver.get_checkpoint()
+                return float(solver.J)
+
+            def dJ0_steepest():
+                print(dJ_i)
+                return float(J_i), dJ_i
+
+            step_a = search.search(J_steepest, None, dJ0_steepest())
+            print(step_a)
+            solver.update_multimesh(step_a)
+            solver.set_checkpoint()
+            plot(solver.multimesh.part(1),color="r")
+            show()
+    steepest_descent()
+
+
+    # FIXME: This hasen't been fully implemented as it is a complex subject not suitable for this
+    # paper
+    # def scipy_optimization():
+    #     """
+    #     Using scipy and its optimization algorithms to solve the optimization problem
+    #     """
+    #     print("original J", solver.J)
+    #     from scipy.optimize import minimize
+    #     # Design variables
+    #     s_b = numpy.zeros(len(solver.design_map[0].keys()))
+    #     s_b = numpy.ones(len(s_b))
+    #     solver.eval_scipy_J(s_b)
+    #     # solver.gradient_scale = 1e-4
+    #     result = minimize(solver.eval_scipy_J, s_b,
+    #                       jac=solver.eval_scipy_dJ,
+    #                       method='BFGS',
+    #                       callback=solver.callback,
+    #                       options={'disp':True, 'maxiter':25})
+    #     print("Update geometry and restart algorithm")
+    #     # Update mesh to new perturbed mesh
+    #     solver.update_mesh_coordinates(result['x'])
+    # scipy_optimization()
