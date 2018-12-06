@@ -306,14 +306,13 @@ if __name__ == "__main__":
     solver = StokesSolver(meshes, mfs, cover, bc_dict, move_dict, length_width)
 
     markers = ["o","v","s","P","*","d"]
-
+    colors = ["b","r","g","k","m"]
     def steepest_descent():
-        colors = ["b","r","g","k"]
         o_u = [File("output/u_mesh%d.pvd" %i) for i in range(solver.N)]
         search = moola.linesearch.ArmijoLineSearch(start_stp=1)
         outmesh = File("output/steepest.pvd")
         extra_opts = 0
-        r_step = 10
+        r_step = 6
         max_it = 3*r_step
 
         opts = 0
@@ -322,8 +321,8 @@ if __name__ == "__main__":
         solver.eval_J()
         plot(solver.multimesh.part(1), color=colors[0],linewidth=0.75,zorder=0)
         b_mesh = BoundaryMesh(solver.multimesh.part(1),"exterior",True)
-        plot(b_mesh,color=colors[0],linestyle="None", markersize=3,
-             marker=markers[0], label="Iteration {}".format(0),zorder=2)
+        plot(b_mesh,color=colors[0],linestyle="None", markersize=1,
+             marker=markers[0], label="Iteration {}".format(0),zorder=1)
 
         J_it = [solver.J]
         J_i = J_it[0]
@@ -380,13 +379,14 @@ if __name__ == "__main__":
                         print("Increasing volume and barycenter penalty")
                         solver.vfac*=2
                         solver.bfac*=2
-                        b_mesh = BoundaryMesh(solver.multimesh.part(1),"exterior",True)
-                        plot(b_mesh,color=colors[i//r_step],linestyle="None",
-                             markersize=3,marker=markers[i//r_step],
-                             label="Iteration {}".format(i),
-                             zorder=i//r_step+2)
                         solver.eval_J()
                         J_it.append(solver.J)
+                    if i % r_step == 0:
+                        b_mesh = BoundaryMesh(solver.multimesh.part(1),"exterior",True)
+                        plot(b_mesh,color=colors[i//r_step],linestyle="None",
+                             markersize=1,marker=markers[i//r_step],
+                             label="Iteration {}".format(i),
+                             zorder=i//r_step+2)
 
                     i+=1
                     search.start_stp=1
@@ -445,9 +445,12 @@ if __name__ == "__main__":
               .format(float(solver.Voloff/solver.Vol0)*100,
                       float(solver.bxoff/solver.bx0)*100,
                       float(solver.byoff/solver.by0)*100))
-        plot(solver.multimesh.part(1),zorder=1,color=colors[i//r_step],
-             linewidth=1.5)
-        plt.legend(prop={'size': 10})
+        plot(solver.multimesh.part(1),zorder=2,color=colors[i//r_step],
+             linewidth=1)
+        plt.legend(prop={'size': 10},markerscale=2)
+        manager = plt.get_current_fig_manager()
+        plt.tight_layout()
+        manager.resize(*manager.window.maxsize())
         plt.axis("off")
         plt.savefig("StokesRugbyMeshes.png",dpi=300)
         import os
