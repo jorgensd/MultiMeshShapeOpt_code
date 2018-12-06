@@ -20,14 +20,24 @@ def background_mesh(res=0.025):
     Create rectangular background mesh for the Poisson problem
     """
     geometry = Geometry()
-    square = geometry.add_rectangle(0,L,0,H,0, res)
+    square = geometry.add_rectangle(0,L,0,H,0, 5*res)
     geometry.add_physical_surface([square.surface],label=12)
     geometry.add_physical_line([square.line_loop.lines[3]], label=inflow)
     geometry.add_physical_line([square.line_loop.lines[1]], label=outflow)
     geometry.add_physical_line([square.line_loop.lines[0],
                                 square.line_loop.lines[2]], label=walls)
-
-
+    p_c = geometry.add_point((c_x,c_y,0),lcar=0.1*res)
+    geometry.add_raw_code(["Field[1]=Attractor;",
+                           "Field[1].NodesList={{ {} }};".format(p_c.id),
+                           "Field[2]=Threshold;",
+                           "Field[2].IField=1;",
+                           "Field[2].LcMin={};".format(res),
+                           "Field[2].LcMax={};".format(5*res),
+                           "Field[2].DistMin={};".format(0.5*r_x),
+                           "Field[2].DistMax={};".format(3*r_x),
+                           "Field[3]=Min;",
+                           "Field[3].FieldsList = {2};",
+                           "Background Field = 3;"])
     (points, cells, point_data,
      cell_data, field_data) = generate_mesh(geometry, prune_z_0=True,dim=2,
                                             geo_filename="meshes/tmp.geo")
