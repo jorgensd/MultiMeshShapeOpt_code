@@ -11,12 +11,12 @@ from dolfin import (ALE, cpp,
                     interpolate, Function, Measure,
                     TestFunction, TrialFunction, assemble, project,
                     TestFunctions, TrialFunctions, sqrt,
-                    dX, dI, dI, dx, dC, dO,
+                    dX, dI, dI, dx, dC, dO, BoundaryMesh,
                     inner, outer, grad, div, avg, jump, sym, tr, Identity,
                     solve, set_log_level, LogLevel, action)
 from IPython import embed
 from pdb import set_trace
-from matplotlib.pyplot import show
+import matplotlib.pyplot as plt
 import moola
 set_log_level(LogLevel.ERROR)
 class StokesSolver():
@@ -304,17 +304,27 @@ if __name__ == "__main__":
                      "Free": outer_marker}}
     length_width = [L, H]
     solver = StokesSolver(meshes, mfs, cover, bc_dict, move_dict, length_width)
+
+    markers = ["o","v","s","P","*","d"]
+
     def steepest_descent():
+        colors = ["b","r","g","k"]
         o_u = [File("output/u_mesh%d.pvd" %i) for i in range(solver.N)]
-        search = moola.linesearch.ArmijoLineSearch(start_stp=1,
-                                                   adaptive_stp=False)
+        search = moola.linesearch.ArmijoLineSearch(start_stp=1)
         outmesh = File("output/steepest.pvd")
         extra_opts = 0
-        max_it = 30
+        r_step = 10
+        max_it = 3*r_step
+
         opts = 0
         rel_tol = 1e-4
         solver.solve()
         solver.eval_J()
+        plot(solver.multimesh.part(1), color=colors[0],linewidth=0.75,zorder=0)
+        b_mesh = BoundaryMesh(solver.multimesh.part(1),"exterior",True)
+        plot(b_mesh,color=colors[0],linestyle="None", markersize=3,
+             marker=markers[0], label="Iteration {}".format(0),zorder=2)
+
         J_it = [solver.J]
         J_i = J_it[0]
         i = 1
@@ -361,29 +371,33 @@ if __name__ == "__main__":
                 solver.update_multimesh(step_a)
                 solver.set_checkpoint()
                 solver.solve()
-                if i % 10 == 0:
-                    print("Increasing volume and barycenter penalty")
-                    solver.vfac*=2
-                    solver.bfac*=2
-                    search.stp*=0.5
-                solver.eval_J()
 
-                J_i = solver.J
+                solver.eval_J()
+                J_it.append(solver.J)
+                J_i = J_it[-1]
                 if J_i > 0:
-                    J_it.append(solver.J)
+                    if i % r_step == 0:
+                        print("Increasing volume and barycenter penalty")
+                        solver.vfac*=2
+                        solver.bfac*=2
+                        b_mesh = BoundaryMesh(solver.multimesh.part(1),"exterior",True)
+                        plot(b_mesh,color=colors[i//r_step],linestyle="None",
+                             markersize=3,marker=markers[i//r_step],
+                             label="Iteration {}".format(i),
+                             zorder=i//r_step+2)
+                        solver.eval_J()
+                        J_it.append(solver.J)
+
                     i+=1
+                    search.start_stp=1
                 else:
                     # If Armjio linesearch returns an unfeasible
-                    # functional value, (since J in our problem has to be
-                    # positive), then decrease initial stepsize and retry
-                    print(search.start_stp)
+                    # functional value, literally deforming too much.
+                    # We know that J in our problem has to be positive
+                    # Decrease initial stepsize and retry
                     search.start_stp =0.5*step_a
-                    print(search.start_stp)
                     for k in range(1, solver.N):
-                        plot(solver.multimesh.part(k))
                         solver.multimesh.part(k).coordinates()[:]=backup_coordinates[k-1]
-                        plot(solver.multimesh.part(k),color="r")
-                        show()
                     solver.multimesh.build()
                     for key in solver.cover_points.keys():
                         solver.multimesh.auto_cover(key, solver.cover_points[key])
@@ -428,8 +442,15 @@ if __name__ == "__main__":
                               float(solver.byoff/solver.by0)))
                     J_i = solver.J # Old solution with new penalization
         print("V_r {0:.2e}, Bx_r {1:.2e}, By_r {2:.2e}"
-              .format(float(solver.Voloff/solver.Vol0),
-                      float(solver.bxoff/solver.bx0),
-                      float(solver.byoff/solver.by0)))
+              .format(float(solver.Voloff/solver.Vol0)*100,
+                      float(solver.bxoff/solver.bx0)*100,
+                      float(solver.byoff/solver.by0)*100))
+        plot(solver.multimesh.part(1),zorder=1,color=colors[i//r_step],
+             linewidth=1.5)
+        plt.legend(prop={'size': 10})
+        plt.axis("off")
+        plt.savefig("StokesRugbyMeshes.png",dpi=300)
+        import os
+        os.system("convert StokesRugbyMeshes.png -trim StokesRugbyMeshes.png")
     steepest_descent()
     
