@@ -9,7 +9,7 @@ from dolfin import (ALE, cpp,
                     XDMFFile, File, plot,
                     Point, VectorElement, FiniteElement,
                     interpolate, Function, Measure,
-                    TestFunction, TrialFunction, assemble,
+                    TestFunction, TrialFunction, assemble, project,
                     TestFunctions, TrialFunctions, sqrt,
                     dX, dI, dI, dx, dC, dO,
                     inner, outer, grad, div, avg, jump, sym, tr, Identity,
@@ -62,8 +62,8 @@ class StokesSolver():
         self.J = 0
         self.dJ = 0
         self.opt_it = 0
-        self.vfac = 1e4
-        self.bfac = 1e1
+        self.vfac = 5e4
+        self.bfac = 5e4
         self.length_width = length_width
         self.__init_geometric_quantities()
         
@@ -106,11 +106,11 @@ class StokesSolver():
         fluid_vol = assemble_multimesh(Constant(1)*dx(domain=self.multimesh) +
                                        Constant(1)*dC(domain=self.multimesh))
         self.Vol0 = Constant(self.length_width[0]*self.length_width[1]
-                             - fluid_vol)
+                                 - fluid_vol)
         self.bx0 = Constant((0.5*self.length_width[0]
-                            - assemble_multimesh(x*dX))/self.Vol0)
+                             - assemble_multimesh(x*dX))/self.Vol0)
         self.by0 = Constant((0.5*self.length_width[1]
-                            - assemble_multimesh(y*dX))/self.Vol0)
+                             - assemble_multimesh(y*dX))/self.Vol0)
 
     
     def geometric_quantities(self):
@@ -127,9 +127,9 @@ class StokesSolver():
         self.Vol = Constant(self.length_width[0]*self.length_width[1]
                              - fluid_vol)
         self.bx = Constant((0.5*self.length_width[0]
-                            - assemble_multimesh(x*dX))/self.Vol0)
+                            - assemble_multimesh(x*dX))/self.Vol)
         self.by = Constant((0.5*self.length_width[1]
-                            - assemble_multimesh(y*dX))/self.Vol0)
+                            - assemble_multimesh(y*dX))/self.Vol)
         self.Voloff = self.Vol - self.Vol0
         self.bxoff = self.bx - self.bx0
         self.byoff = self.by - self.by0
@@ -211,7 +211,6 @@ class StokesSolver():
         solve(A, self.w.vector(), L, "mumps")
         self.splitMMF()
 
-
     def splitMMF(self):
         """
         Split a mixed multimeshfunction into separate multimeshfunctions
@@ -254,9 +253,11 @@ class StokesSolver():
     def set_checkpoint(self):
         for i in range(1,self.N):
             self.backup[i-1] = self.multimesh.part(i).coordinates().copy()
-            
+
     def update_multimesh(self,step):
         move_norm = []
+        hmins = []
+        move_max = []
         for i in range(1, self.N):
             s_move = self.deformation[i-1].copy(True)
             s_move.vector()[:]*=step
@@ -266,14 +267,19 @@ class StokesSolver():
             geo_dist_i = inner(s_move, s_move)*\
                          dDeform(self.move_dict[i]["Deform"])
             move_norm.append(assemble(geo_dist_i))
+            # move_max.append(project(sqrt(s_move[0]**2 + s_move[1]**2),
+            #                         FunctionSpace(self.multimesh.part(i),"CG",1)
+            #                         ).vector().max())
+            # hmins.append(self.multimesh.part(i).hmin())
             ALE.move(self.multimesh.part(i), s_move)
         # Compute L2 norm of movement
         self.move_norm = sqrt(sum(move_norm))
-        print("Movement norm", self.move_norm)
+        # self.move_max = max(move_max)
+        # print(hmins, move_max)
         self.multimesh.build()
         for key in self.cover_points.keys():
             self.multimesh.auto_cover(key, self.cover_points[key])
-        
+
 if __name__ == "__main__":
     meshes = []
     for i in range(2):
@@ -298,26 +304,26 @@ if __name__ == "__main__":
                      "Free": outer_marker}}
     length_width = [L, H]
     solver = StokesSolver(meshes, mfs, cover, bc_dict, move_dict, length_width)
-    start_stp = 1.25e-2
     def steepest_descent():
         o_u = [File("output/u_mesh%d.pvd" %i) for i in range(solver.N)]
-        search = moola.linesearch.ArmijoLineSearch(start_stp=start_stp,stpmax=1,
-                                                   stpmin=1e-6)
+        search = moola.linesearch.ArmijoLineSearch(start_stp=1,
+                                                   adaptive_stp=False)
         outmesh = File("output/steepest.pvd")
-        max_opts = 5
-        max_it = 100
+        extra_opts = 0
+        max_it = 30
         opts = 0
         rel_tol = 1e-4
         solver.solve()
         solver.eval_J()
         J_it = [solver.J]
         J_i = J_it[0]
-        for i in range(1,max_it):
+        i = 1
+        while i<=max_it:
             outmesh << solver.multimesh.part(1)
             for k in range(solver.N):
                 o_u[k] << solver.u.part(k)
             print("-"*10)
-            print("It: {0:1d}, J: {1:.5f}".format(i, J_i))
+            print("It: {0:1d}, J: {1:.5f}".format(i, J_it[-1]))
             solver.recompute_dJ()
             solver.generate_mesh_deformation()
             dJ_i = 0
@@ -333,26 +339,58 @@ if __name__ == "__main__":
                 return float(solver.J)
 
             def dJ0_steepest():
-                return float(J_i), dJ_i
+                return float(J_it[-1]), dJ_i
 
             def increase_opt_number():                
                 solver.vfac*=2
                 solver.bfac*=2
-                if opts < max_opts:
+                if opts < extra_opts:
                     return True
                 else:
-                    print("{0:d} optimizations done, exiting".format(opts))
+                    print("{0:d} optimizations done, exiting".format(opts+1))
                     return False
 
             try:
                 step_a = search.search(J_steepest, None, dJ0_steepest())
-                print("Linesearch found decreasing step: {0:.2e}".format(step_a))
+                print("Linesearch found decreasing step: {0:.2e}"
+                      .format(step_a))
+                # Backup in case step is too large
+                backup_coordinates = [solver.multimesh.part(k)
+                                      .coordinates().copy()
+                                      for k in range(1,solver.N)]
                 solver.update_multimesh(step_a)
                 solver.set_checkpoint()
                 solver.solve()
+                if i % 10 == 0:
+                    print("Increasing volume and barycenter penalty")
+                    solver.vfac*=2
+                    solver.bfac*=2
+                    search.stp*=0.5
                 solver.eval_J()
+
                 J_i = solver.J
-                J_it.append(J_i)
+                if J_i > 0:
+                    J_it.append(solver.J)
+                    i+=1
+                else:
+                    # If Armjio linesearch returns an unfeasible
+                    # functional value, (since J in our problem has to be
+                    # positive), then decrease initial stepsize and retry
+                    print(search.start_stp)
+                    search.start_stp =0.5*step_a
+                    print(search.start_stp)
+                    for k in range(1, solver.N):
+                        plot(solver.multimesh.part(k))
+                        solver.multimesh.part(k).coordinates()[:]=backup_coordinates[k-1]
+                        plot(solver.multimesh.part(k),color="r")
+                        show()
+                    solver.multimesh.build()
+                    for key in solver.cover_points.keys():
+                        solver.multimesh.auto_cover(key, solver.cover_points[key])
+                    solver.set_checkpoint()
+                    solver.solve()
+                    solver.eval_J()
+                    J_it[-1] = solver.J
                 rel_reduction = abs(J_it[-1]-J_it[-2])/abs(J_it[-2])
                 if rel_reduction < rel_tol and solver.move_norm < rel_tol:
                     raise ValueError("Relative reduction less than {0:1e1}"
@@ -366,7 +404,6 @@ if __name__ == "__main__":
                 else:
                     # Reset linesearch
                     opts+=1
-                    search.start_stp=start_stp*0.5**opts
                     # In new optimization run, the deformed geometry
                     # should not have a higher functional value than the first
                     # iteration
@@ -383,8 +420,16 @@ if __name__ == "__main__":
                     break
                 else:
                     opts+=1
-                    search.start_stp=start_stp*0.5**opts
                     solver.solve()
                     solver.eval_J()
-                    J_i = solver.J # Old solution with new penalization 
+                    print("V_r {0:.2e}, Bx_r {1:.2e}, By_r {2:.2e}"
+                      .format(float(solver.Voloff/solver.Vol0),
+                              float(solver.bxoff/solver.bx0),
+                              float(solver.byoff/solver.by0)))
+                    J_i = solver.J # Old solution with new penalization
+        print("V_r {0:.2e}, Bx_r {1:.2e}, By_r {2:.2e}"
+              .format(float(solver.Voloff/solver.Vol0),
+                      float(solver.bxoff/solver.bx0),
+                      float(solver.byoff/solver.by0)))
     steepest_descent()
+    
