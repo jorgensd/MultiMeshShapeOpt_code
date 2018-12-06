@@ -10,7 +10,7 @@ from dolfin import (ALE, cpp,
                     Point, VectorElement, FiniteElement,
                     interpolate, Function, Measure,
                     TestFunction, TrialFunction, assemble,
-                    TestFunctions, TrialFunctions,
+                    TestFunctions, TrialFunctions, sqrt,
                     dX, dI, dI, dx, dC, dO,
                     inner, outer, grad, div, avg, jump, sym, tr, Identity,
                     solve, set_log_level, LogLevel, action)
@@ -243,7 +243,7 @@ class StokesSolver():
             e_solver = ElasticitySolver(self.multimesh.part(i), self.mfs[i],
                                       free_marker=self.move_dict[i]["Free"],
                                       deform_marker=self.move_dict[i]["Deform"],
-                                        constant_mu=False)
+                                        constant_mu=True)
             e_solver.solve(self.f, -self.integrand_list[i-1])
             self.deformation.append(e_solver.u_)
 
@@ -256,10 +256,20 @@ class StokesSolver():
             self.backup[i-1] = self.multimesh.part(i).coordinates().copy()
             
     def update_multimesh(self,step):
+        move_norm = []
         for i in range(1, self.N):
             s_move = self.deformation[i-1].copy(True)
             s_move.vector()[:]*=step
+            # Approximate geodesic distance
+            dDeform = Measure("ds", subdomain_data=self.mfs[i])
+            n_i = FacetNormal(self.multimesh.part(i))
+            geo_dist_i = inner(s_move, s_move)*\
+                         dDeform(self.move_dict[i]["Deform"])
+            move_norm.append(assemble(geo_dist_i))
             ALE.move(self.multimesh.part(i), s_move)
+        # Compute L2 norm of movement
+        self.move_norm = sqrt(sum(move_norm))
+        print("Movement norm", self.move_norm)
         self.multimesh.build()
         for key in self.cover_points.keys():
             self.multimesh.auto_cover(key, self.cover_points[key])
@@ -288,15 +298,16 @@ if __name__ == "__main__":
                      "Free": outer_marker}}
     length_width = [L, H]
     solver = StokesSolver(meshes, mfs, cover, bc_dict, move_dict, length_width)
-    start_stp = 2.5e-2
+    start_stp = 1.25e-2
     def steepest_descent():
         o_u = [File("output/u_mesh%d.pvd" %i) for i in range(solver.N)]
         search = moola.linesearch.ArmijoLineSearch(start_stp=start_stp,stpmax=1,
-                                                   stpmin=1e-9)
+                                                   stpmin=1e-6)
         outmesh = File("output/steepest.pvd")
-        max_opts = 3
+        max_opts = 5
         max_it = 100
         opts = 0
+        rel_tol = 1e-4
         solver.solve()
         solver.eval_J()
         J_it = [solver.J]
@@ -343,30 +354,36 @@ if __name__ == "__main__":
                 J_i = solver.J
                 J_it.append(J_i)
                 rel_reduction = abs(J_it[-1]-J_it[-2])/abs(J_it[-2])
-                if rel_reduction < 1e-6:
+                if rel_reduction < rel_tol and solver.move_norm < rel_tol:
                     raise ValueError("Relative reduction less than {0:1e1}"
-                                     .format(1e-6))
+                                     .format(rel_tol))
             except Warning:
                 print("Linesearch could not find descent direction")
                 print("Restart with stricter penalty")
+                print("*"*15)
                 if not increase_opt_number():
                     break
                 else:
                     # Reset linesearch
-                    search.start_stp=start_stp
                     opts+=1
+                    search.start_stp=start_stp*0.5**opts
                     # In new optimization run, the deformed geometry
                     # should not have a higher functional value than the first
                     # iteration
                     J_i = J_it[0]
             except ValueError:
-                print("Minimal relative decrease reached")
+                print("Stopping criteria met")
+                print("abs((J_k-J_k-1)/J_k)={0:.2e}<{1:.2e}"
+                      .format(rel_reduction, rel_tol))
+                print("L^2(Gamma)(s)={0:.2e}<{1:.2e}"
+                      .format(solver.move_norm, rel_tol))
                 print("Increase volume and barycenter penalty")
+                print("*"*15)
                 if not increase_opt_number():
                     break
                 else:
-                    search.start_stp=0.05
                     opts+=1
+                    search.start_stp=start_stp*0.5**opts
                     solver.solve()
                     solver.eval_J()
                     J_i = solver.J # Old solution with new penalization 
