@@ -1,0 +1,104 @@
+----------
+It: 1, J: 21.51172
+Gradient at current iteration -2.10e+02
+Linesearch found decreasing step: 3.12e-02
+----------
+It: 2, J: 18.80940
+Gradient at current iteration -2.69e+02
+Linesearch found decreasing step: 2.50e-01
+----------
+It: 2, J: 18.80940
+Gradient at current iteration -2.69e+02
+Linesearch found decreasing step: 7.81e-03
+----------
+It: 3, J: 18.35235
+Gradient at current iteration -6.92e+01
+Linesearch found decreasing step: 7.81e-03
+----------
+It: 4, J: 18.10354
+Gradient at current iteration -6.37e+00
+Linesearch found decreasing step: 1.56e-02
+----------
+It: 5, J: 18.07910
+Gradient at current iteration -1.40e+01
+Linesearch found decreasing step: 7.81e-03
+----------
+It: 6, J: 18.02930
+Gradient at current iteration -4.87e+00
+Linesearch found decreasing step: 1.56e-02
+----------
+It: 7, J: 18.00938
+Gradient at current iteration -1.20e+01
+Linesearch found decreasing step: 7.81e-03
+----------
+It: 8, J: 17.97189
+Gradient at current iteration -5.24e+00
+Linesearch found decreasing step: 1.56e-02
+Increasing volume and barycenter penalty
+----------
+It: 9, J: 18.24189
+Gradient at current iteration -3.56e+01
+Linesearch found decreasing step: 3.91e-03
+----------
+It: 10, J: 18.19418
+Gradient at current iteration -9.60e+00
+Linesearch found decreasing step: 7.81e-03
+----------
+It: 11, J: 18.18672
+Gradient at current iteration -2.53e+01
+Linesearch found decreasing step: 3.91e-03
+----------
+It: 12, J: 18.15390
+Gradient at current iteration -8.44e+00
+Linesearch found decreasing step: 7.81e-03
+----------
+It: 13, J: 18.15022
+Gradient at current iteration -2.49e+01
+Linesearch found decreasing step: 3.91e-03
+----------
+It: 14, J: 18.12142
+Gradient at current iteration -9.48e+00
+Linesearch found decreasing step: 3.91e-03
+----------
+It: 15, J: 18.10408
+Gradient at current iteration -4.46e+00
+Linesearch found decreasing step: 7.81e-03
+----------
+It: 16, J: 18.09313
+Gradient at current iteration -1.10e+01
+Linesearch found decreasing step: 3.91e-03
+Increasing volume and barycenter penalty
+----------
+It: 17, J: 18.39138
+Gradient at current iteration -3.00e+02
+Linesearch found decreasing step: 1.95e-03
+----------
+It: 18, J: 18.25429
+Gradient at current iteration -8.22e+01
+Linesearch found decreasing step: 1.95e-03
+----------
+It: 19, J: 18.20139
+Gradient at current iteration -1.77e+01
+Linesearch found decreasing step: 1.95e-03
+----------
+It: 20, J: 18.19077
+Gradient at current iteration -6.56e+00
+Linesearch found decreasing step: 3.91e-03
+----------
+It: 21, J: 18.18387
+Gradient at current iteration -1.73e+01
+Linesearch found decreasing step: 1.95e-03
+----------
+It: 22, J: 18.17182
+Gradient at current iteration -6.82e+00
+Linesearch found decreasing step: 3.91e-03
+----------
+It: 23, J: 18.16905
+Gradient at current iteration -1.99e+01
+Linesearch found decreasing step: 1.95e-03
+----------
+It: 24, J: 18.16009
+Gradient at current iteration -8.04e+00
+Linesearch found decreasing step: 3.91e-03
+Increasing volume and barycenter penalty
+V_r -2.29e+00, Bx_r 5.12e-03, By_r -3.76e-06
