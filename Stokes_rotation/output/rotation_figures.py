@@ -103,7 +103,7 @@ ColorBy(u_0pvdDisplay, ('POINTS', 'x', 'Magnitude'))
 u_0pvdDisplay.RescaleTransferFunctionToDataRange(True, False)
 
 # show color bar/color legend
-u_0pvdDisplay.SetScalarBarVisibility(renderView1, True)
+u_0pvdDisplay.SetScalarBarVisibility(renderView1, False)
 
 # get color transfer function/color map for 'x'
 xLUT = GetColorTransferFunction('x')
@@ -180,7 +180,7 @@ for i in range(1,10):
 
 
     # update the view to ensure updated data information
-    renderView1.Update()
+    #renderView1.Update()
 
     # set active source
     SetActiveSource(u_pvds[i-1])
@@ -193,17 +193,16 @@ for i in range(1,10):
     u_ipvdDisplay.AmbientColor = [1.0, 0.0, 0.0]
 
 
-    # set scalar coloring
-    ColorBy(u_ipvdDisplay, ('POINTS', 'x', 'Magnitude'))
-
     # rescale color and/or opacity maps used to include current data range
-    u_ipvdDisplay.RescaleTransferFunctionToDataRange(True, False)
+    #u_ipvdDisplay.RescaleTransferFunctionToDataRange(True, False)
 
     # show color bar/color legend
-    u_ipvdDisplay.SetScalarBarVisibility(renderView1, True)
+    # u_ipvdDisplay.SetScalarBarVisibility(renderView1, True)
+    # u_ipvdDisplay.RescaleTransferFunctionToDataRange(False, True)
 
     # turn off scalar coloring
     ColorBy(u_ipvdDisplay, None)
+renderView1.Update()
 
 # Hide the scalar bar for this color map if no visible data is colored by it.
 HideScalarBarIfNotNeeded(xLUT, renderView1)
@@ -213,6 +212,7 @@ renderView1.InteractionMode = '2D'
 renderView1.CameraPosition = [0.5, 0.5, 10000.0]
 renderView1.CameraFocalPoint = [0.5, 0.5, 0.0]
 renderView1.CameraParallelScale = 0.7071067811865476
+
 
 # save screenshot
 SaveScreenshot(pwd + '/initial_rotation.png', renderView1, ImageResolution=[1547, 807])
@@ -228,23 +228,19 @@ xLUTColorBar = GetScalarBar(xLUT, renderView1)
 # Properties modified on xLUTColorBar
 xLUTColorBar.AutoOrient = 0
 xLUTColorBar.Orientation = 'Vertical'
-
+xLUTColorBar.ComponentTitle = 'Magnitude'
 # Properties modified on xLUTColorBar
-xLUTColorBar.Position = [0.2, 0.02]
-
-# change scalar bar placement
-xLUTColorBar.Position = [0.7821025195482191, 0.029913258983890953]
-
-# change scalar bar placement
-xLUTColorBar.ScalarBarLength = 0.5141054175609538
-
-# change scalar bar placement
-xLUTColorBar.Position = [0.785577758470895, 0.147633209417596]
-xLUTColorBar.ScalarBarLength = 0.5141054175609538
-
-# change scalar bar placement
-xLUTColorBar.ScalarBarLength = 0.6801525055411293
-
+xLUTColorBar.Position = [0.68, 0.15]
+xLUTColorBar.ScalarBarLength = 0.69
+xLUTColorBar.ScalarBarThickness = 5
+xLUTColorBar.UseCustomLabels = 1
+xLUTColorBar.CustomLabels = [0,0.2,0.4,0.625]
+xLUTColorBar.RangeLabelFormat = '%-#.2f'
+xLUTColorBar.TitleFontSize = 5
+xLUTColorBar.LabelFontSize = 3
+xLUTColorBar.Title = 'u'
+for prop in xLUTColorBar:
+    print type(prop), prop.GetXMLLabel()
 # Hide orientation axes
 renderView1.OrientationAxesVisibility = 0
 
@@ -256,6 +252,11 @@ renderView1.CameraPosition = [0.5245340642790872, 0.5052572994883759, 10000.0]
 renderView1.CameraFocalPoint = [0.5245340642790872, 0.5052572994883759, 0.0]
 renderView1.CameraParallelScale = 0.7071067811865476
 
+SaveScreenshot(pwd + '/final_rotation.png', renderView1, ImageResolution=[1547, 807])
+
+os.system("convert {0} -trim {0}".format(pwd+'/final_rotation.png'))
+os.system("convert {0} -trim {0}".format(pwd+'/initial_rotation.png'))
+          
 #### uncomment the following to render all views
 # RenderAllViews()
 # alternatively, if you want to write images, you can use SaveScreenshot(...).
