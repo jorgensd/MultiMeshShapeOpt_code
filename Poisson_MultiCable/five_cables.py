@@ -47,32 +47,53 @@ for i in range(n_cables):
 for i in range(MC.multimesh.num_parts()):
     outputs[i] << MC.T.part(i)
 
-def plot_init_opt(init, opt,filename):
+print("Optimal J: %.2e" % MC.J)
+def plot_init_opt(init, opt,filename,colorbar=True):
     plt.subplot(1,2,1)
     MC.eval_J(init)
+    MC.T.vector().get_local().copy()
+    
+    T_max_arr = MC.T.vector().get_local()
+    inactive = MC.T.function_space().dofmap().inactive_dofs(MC.multimesh, 0)
+    T_stripped = [val for idx, val in enumerate(T_max_arr)
+                  if idx not in inactive]
+    T_max = numpy.max(T_stripped)
+    MC.eval_J(opt)
+    T_min_arr = MC.T.vector().get_local()   
+    inactive = MC.T.function_space().dofmap().inactive_dofs(MC.multimesh, 0)
+    T_stripped = [val for idx, val in enumerate(T_min_arr)
+                  if idx not in inactive]
+    T_min = numpy.min(T_stripped)
+    MC.eval_J(init)
+    
     # Strip T of inactive dofs values
     N = 512 # Number of levels used in contour plot
     
-    plot_cable(init,N)
+    plot_cable(init,N,T_min,T_max)
 
     plt.subplot(1,2,2)
     MC.eval_J(opt)
     
-    plot_cable(opt,N)
+    plot_cable(opt,N, T_min, T_max)
+    m = plt.cm.ScalarMappable()
+    m.set_array(T_stripped)
+    fig = plt.gcf()
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.81, 0.32, 0.02, 0.34])
+    cbar = plt.colorbar(m,orientation="vertical",
+                        ticks=numpy.linspace(T_min,T_max, 4),
+                        boundaries=numpy.linspace(T_min,T_max,N),pad=0.01,
+                        format="%.2f", cax=cbar_ax)
+
+    cbar.set_clim(T_min,T_max)
     plt.savefig(filename, pad_inches=0, dpi=250,
                 bboxinches="tight")
     import os
     os.system("convert " + filename + " -trim " + filename)
     
-def plot_cable(positions,N):
+def plot_cable(positions,N, T_min, T_max):
     fig = plt.gcf()
     ax = fig.gca()
-    T_arr = MC.T.vector().get_local()
-    inactive = MC.T.function_space().dofmap().inactive_dofs(MC.multimesh, 0)
-    T_stripped = [val for idx, val in enumerate(T_arr)
-                       if idx not in inactive]
-    T_min = numpy.min(T_stripped)
-    T_max = numpy.max(T_stripped)
     norm = mpl.colors.Normalize(vmin=T_min, vmax=T_max)
     
     p0 = plot(MC.T.part(0),norm=norm,zorder=0,
@@ -91,15 +112,7 @@ def plot_cable(positions,N):
 
         ax.add_patch(iso_circle)
         ax.add_patch(metal_circle)
-    m = plt.cm.ScalarMappable()
-    m.set_array(T_stripped)
-    cbar = plt.colorbar(m,orientation="horizontal",
-                        ticks=numpy.linspace(T_min,T_max, 4),
-                        boundaries=numpy.linspace(T_min,T_max,N),pad=0.01,
-                        format="%.2f")
-
-    cbar.set_clim(T_min,T_max)
     plt.axis("off")
+    return T_min, T_max
 
-    
 plot_init_opt(cable_positions, opt_sol,"output/five_cables.png")
