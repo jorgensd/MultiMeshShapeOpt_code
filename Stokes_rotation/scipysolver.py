@@ -22,6 +22,12 @@ if __name__ == "__main__":
     meshes = [pre+"multimesh_0.xdmf"] +  [pre+"multimesh_1.xdmf"]*len(points)
     mfs = [pre+"mf_0.xdmf"] + [pre+"mf_1.xdmf"]*len(points)
     solver = StokesSolver(points, thetas, meshes, mfs, inlet_data)
+    n_cells = 0 
+    for i in range(solver.multimesh.num_parts()):
+        tmp = n_cells
+        n_cells += solver.multimesh.part(i).num_cells()
+        print(n_cells -tmp)
+    print( n_cells)
 
     # Save initial solution
     J_init = solver.eval_J(init_angles)
@@ -32,11 +38,12 @@ if __name__ == "__main__":
 
     # Initialize optimizer
     from scipy.optimize import minimize
+    print("running Scipy optimzation solver")
     result = minimize(solver.eval_J, thetas,
                          jac=solver.eval_dJ,
                          method = 'Newton-CG',
                          callback=solver.callback,
-                         options={"maxiter":50,"xtol":1e-2, "disp":True})
+                         options={"maxiter":50,"xtol":1e-1, "disp":True})
 
     # Save final solution
     print("Optimal Theta")
