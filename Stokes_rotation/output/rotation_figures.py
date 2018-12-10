@@ -231,7 +231,7 @@ xLUTColorBar.Orientation = 'Vertical'
 xLUTColorBar.ComponentTitle = 'Magnitude'
 # Properties modified on xLUTColorBar
 xLUTColorBar.Position = [0.68, 0.15]
-xLUTColorBar.ScalarBarLength = 0.69
+xLUTColorBar.ScalarBarLength = 0.67
 xLUTColorBar.ScalarBarThickness = 5
 xLUTColorBar.UseCustomLabels = 1
 xLUTColorBar.CustomLabels = [0,0.2,0.4,0.625]
