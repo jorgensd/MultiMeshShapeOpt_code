@@ -246,6 +246,25 @@ class StokesSolver():
             e_solver.solve(self.f, -self.integrand_list[i-1])
             self.deformation.append(e_solver.u_)
 
+    def generate_H1_deformation(self):
+        self.deformation = []
+        for i in range(1, self.N):
+            S_i = VectorFunctionSpace(self.multimesh.part(i), "CG", 1)
+            u_i,v_i = TrialFunction(S_i), TestFunction(S_i)
+            d_free = Measure("ds", domain=self.multimesh.part(i),
+                             subdomain_data=self.mfs[i],
+                             subdomain_id=self.move_dict[i]["Deform"])
+            plot(-self.integrand_list[i-1])
+            plt.show()
+            a_i = inner(u_i, v_i)*dx + 0.01*inner(grad(u_i), grad(v_i))*dx
+            n_i = FacetNormal(self.multimesh.part(i))
+            l_i = inner(v_i, -self.integrand_list[i-1])*d_free
+            s_i = Function(S_i)
+            solve(a_i==l_i, s_i)
+            plot(s_i)
+            plt.show()
+            self.deformation.append(s_i)
+
     def get_checkpoint(self):
         for i in range(1,self.N):
             self.multimesh.part(i).coordinates()[:] = self.backup[i-1]
@@ -312,7 +331,7 @@ if __name__ == "__main__":
         search = moola.linesearch.ArmijoLineSearch(start_stp=1)
         outmesh = File("output/steepest.pvd")
         extra_opts = 0
-        r_step = 6
+        r_step = 8
         max_it = 3*r_step
 
         opts = 0
@@ -335,6 +354,8 @@ if __name__ == "__main__":
             print("It: {0:1d}, J: {1:.5f}".format(i, J_it[-1]))
             solver.recompute_dJ()
             solver.generate_mesh_deformation()
+            #solver.generate_H1_deformation()
+
             dJ_i = 0
             for j in range(1,solver.N):
                 dJ_i += assemble(action(solver.dJ_form[j-1],
