@@ -10,11 +10,11 @@ def convergence_rates(E_values, eps_values):
     return r
 
 lmb_metal = 50.   # Heat coefficient aluminium
-lmb_insulation = 0.15 # Heat coefficient of plastic
-lmb_air = 0.33   # Heat coefficient of brick
+lmb_insulation = 1. # Heat coefficient of plastic
+lmb_air = 2.   # Heat coefficient of brick
 c1 = numpy.array([0, 0.05])
 scales = numpy.array([1])   
-sources = numpy.array([30])
+sources = numpy.array([15])
 from MultiCable import *
 
 MC = MultiCable(scales, c1, lmb_metal, lmb_insulation,
