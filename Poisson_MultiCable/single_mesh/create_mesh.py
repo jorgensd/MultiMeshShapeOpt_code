@@ -44,7 +44,7 @@ def create_multicable(cable_pos, res=0.1):
     with Timer("USER_TIMING: Generate mesh") as t:
         (points, cells, point_data,
          cell_data, field_data) = pygmsh.generate_mesh(geo, prune_z_0=True,
-                                                       verbose=False)#,
+                                                       verbose=True)#,
                                                        # geo_filename="mesh.geo")
 
     meshio.write("multicable.xdmf",
