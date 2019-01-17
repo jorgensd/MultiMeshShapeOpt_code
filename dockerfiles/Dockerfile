@@ -38,7 +38,7 @@ RUN /bin/bash -l -c "source $FENICS_HOME/mmshapeopt.conf && \
                      update_ipopt && \
                      update_pyipopt"
 
-RUN /bin/bash -l -c "pip3 install pygmsh meshio moola"
+RUN /bin/bash -l -c "pip3 install pygmsh meshio moola scipy==1.1.0"
 
 
 USER fenics
