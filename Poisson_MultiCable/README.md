@@ -1,20 +1,16 @@
+# Minimization of heat in a multicable
+This folder contains source code for solving the heat minimization problem of
+finding the placement of N internal cables in a MultiCable.
+
+The subfolder [single_mesh])https://github.com/jorgensd/MultiMeshShapeOpt_code/tree/master/Poisson_MultiCable/single_mesh) contains the traditional FEM implementation used for comparasion.
+
 # Examples in article #
-equilateral.py
+
+- equilateral.py (Includes timings of MultiMesh operations)
+- five_cables.py
+- plot_taylor.py
 
 # Run examples
 Use the commands in the Makefile to get the results used in the article,
 i.e. `make equilateral` runs the equilateral multicable example.
 
-# Installation #
-For the examples to run, the following commands has to be run to obtain
-dolfin 2018.1.0 with a compatible IPOPT solver. It also installs femorph 2.0,
-where the only component needed is the VolumeNormal, a "CG1"-representation
-of the FacetNormal in dolfin. To run the examples use python3.
-```
-docker run -ti -v $(pwd):/home/fenics/shared quay.io/dolfinadjoint/pyadjoint:2018.1.0
-git clone https://bitbucket.org/Epoxid/femorph.git
-cd femorph
-git checkout dokken/restructuring
-sudo pip3 install .
-cd ../shared
-```
