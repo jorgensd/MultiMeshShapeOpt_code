@@ -2,7 +2,7 @@
 This folder contains source code for solving the heat minimization problem of
 finding the placement of N internal cables in a MultiCable.
 
-The subfolder [single_mesh])https://github.com/jorgensd/MultiMeshShapeOpt_code/tree/master/Poisson_MultiCable/single_mesh) contains the traditional FEM implementation used for comparasion.
+The subfolder [single_mesh](https://github.com/jorgensd/MultiMeshShapeOpt_code/tree/master/Poisson_MultiCable/single_mesh) contains the traditional FEM implementation used for comparasion.
 
 # Examples in article #
 
