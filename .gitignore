@@ -1,0 +1,14 @@
+*.vtu
+*~
+*.pvd
+*.xdmf
+*.h5
+*#
+*.xml
+*.msh
+*.pos
+**/__pycache__/
+*.pyc
+*.png
+**/output/
+*.geo
