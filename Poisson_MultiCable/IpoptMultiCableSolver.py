@@ -111,6 +111,7 @@ class MultiCableOptimization():
         )
          # So it does not violate the boundary constraint
         self.nlp.num_option('bound_relax_factor', 0)
+        self.nlp.int_option('print_level', 6)
 
     def solve(self, cable_positions):
         return self.nlp.solve(cable_positions)[0]
