@@ -128,34 +128,19 @@ class PoissonSolver():
         d = div(s)*(0.5*self.T*self.T+dot(grad(self.T),grad(self.lmb))
                     -f*self.lmb)*dx - inner(dot(grad(self.T),grad(s)), grad(self.lmb))*dx\
                     - inner(grad(self.T), dot(grad(self.lmb),grad(s)))*dx
-        n = FacetNormal(self.mesh)
-        dn_mat = dot(outer(grad(s)*n,n).T,n) - dot(grad(s).T, n)
       
         # Hadamard version assuming strong form of gradient is fulfilled
         d_Hadamard = inner(s,n)*(0.5*self.T*self.T -inner(n, grad(self.lmb))*inner(n, grad(self.T)))*ds
-
-        # Hadamard acoording to Pyadjoint discretized paper
-        # d_Hadamard = inner(s,n)*(0.5*self.T*self.T
-        #                          +inner(grad(self.T),grad(self.lmb))
-        #                          -f*self.lmb) *ds
-
-        # Additional terms if one include the du/dn v term from the variational
-        # form after integrating by parts (not selecting the function space)
-        # d_Hadamard += inner(s,n)*self.lmb*dot(grad(self.T),n)*ds
-        # d_Hadamard += inner(s,n)*(dot(grad(self.T), n)*dot(grad(self.lmb_b), n)
-        #                           +dot(dot(n, grad(grad(self.T))), n)
-        #                           -div(grad(self.T)*self.lmb_b)
-        #                           -inner(dot(grad(grad(self.T)*self.lmb_b), n), n))*ds
         
         dJs = assemble(d)
         dJs_Hadamard = assemble(d_Hadamard)
         s = Function(self.S)
         s.vector()[:] = dJs.get_local()
-        File("output/sm_s.pvd") << s
+        XDMFFile("output/singlemesh_gradient_material.xdmf").write(s)
         s.vector()[:] = dJs_Hadamard.get_local()
-        File("output/sm_h.pvd") << s
+        XDMFFile("output/singlemesh_gradient_hadamard.xdmf").write(s)
 
-
+        
 
 
     
@@ -163,7 +148,7 @@ if __name__ == '__main__':
 
     m_names = "meshes/singlemesh.xdmf"
     f_names = "meshes/mf.xdmf"
-    fexp = Constant(0) #Expression('x[0]*sin(x[0])*cos(x[1])', degree=4)
+    fexp = Expression('x[0]*sin(x[0])*cos(x[1])', degree=4)
     solver = PoissonSolver(m_names, f_names, fexp)
     solver.eval_dJ(0)
 

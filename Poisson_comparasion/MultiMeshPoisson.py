@@ -153,7 +153,7 @@ class PoissonSolver():
         self.V.lock_inactive_dofs(A, b)
         solve(A, self.lmb.vector(), b, 'lu')
 
-        # Add outer boundary_terms
+        # Add outer boundary_terms as interface terms has no effect
         dJ = 0
         for i in range(1,self.multimesh.num_parts()):
             Ti = self.T.part(i, deepcopy=True)
@@ -162,26 +162,10 @@ class PoissonSolver():
             si = TestFunction(self.s.part(i,deepcopy=True).function_space())
             dsi = Measure("ds", domain=self.multimesh.part(i),
                          subdomain_data=mf_1)
-            dJ += assemble(inner(ni,si)*(Ti**2-dot(grad(lmbi), ni)*dot(grad(Ti),ni))*dsi(inner_marker))
+            dJ += assemble(inner(ni,si)*(Ti**2-dot(grad(lmbi), ni)
+                                         *dot(grad(Ti),ni))*dsi(inner_marker))
         s1 = self.s.part(1,deepcopy=True)
         s1.vector()[:] = dJ.get_local()
-
-        s = TestFunction(self.S)
-        n = FacetNormal(self.multimesh)
-        # n("+") is n on background mesh, n("-") on top mesh
-        def tan_div(s, n):
-            return div(s)-dot(dot(grad(s),n),n)
-        dJ_full = assemble_multimesh(
-            inner(n("-"),s("-"))*(
-                avg(self.lmb)*jump(-div(grad(self.T)))
-                +self.lmb("-")*dot(dot(jump(grad(grad(self.T))),n("-")),n("-"))
-                -tan_div(jump(grad(self.T))*self.lmb("-"), n("-")))
-                *dI)
-        print(np.max(s1.vector().get_local()))
-        print(np.max(dJ_full.get_local()))
-        s_tmp = MultiMeshFunction(self.S)
-        s_tmp.vector()[:] = dJ_full.get_local()
-        s1 += s_tmp.part(1,deepcopy=True)
         return s1
 
 
@@ -194,6 +178,5 @@ if __name__ == '__main__':
     solver = PoissonSolver(m_names, f_names, fexp)
     s_org = solver.s.part(1,deepcopy=True)
     dJ = solver.eval_dJ(s_org)
-    from IPython import embed; embed()
-
-    
+    outfile = XDMFFile("output/multimesh_gradient_hadamard.xdmf")
+    outfile.write(dJ)    

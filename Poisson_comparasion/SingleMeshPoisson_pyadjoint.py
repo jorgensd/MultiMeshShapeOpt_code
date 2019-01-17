@@ -59,7 +59,7 @@ J = assemble(J_ufl(T))
 Jhat = ReducedFunctional(J, Control(s))
 def save_to_file_l2(gradient):
     s.vector()[:] = gradient.get_local()
-    File("output/sm_padj_s.pvd") << s
+    XDMFFile("output/singlemesh_pyadjoint_material.xdmf").write(s)
     return s
 
 s1 = Function(S)
