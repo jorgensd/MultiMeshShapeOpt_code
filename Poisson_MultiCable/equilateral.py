@@ -53,7 +53,6 @@ opt.nlp.int_option('max_iter', 30)
 
 opt_sol = opt.solve(cable_positions)
 
-
 compute_angles(opt_sol)
 MC.eval_J(opt_sol)
 print("Optimal J: %.2e" % MC.J)
@@ -93,6 +92,7 @@ def plot_init_opt(init, opt,filename,colorbar=True):
                         ticks=numpy.linspace(T_min,T_max, 4),
                         boundaries=numpy.linspace(T_min,T_max,N),pad=0.01,
                         format="%.2f", cax=cbar_ax)
+    cbar.ax.tick_params(labelsize=8)
 
     cbar.set_clim(T_min,T_max)
     plt.savefig(filename, pad_inches=0, dpi=250,
