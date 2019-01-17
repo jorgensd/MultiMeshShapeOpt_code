@@ -35,7 +35,7 @@ docker container start mmshapeopt
 ```
 
 ### Manual installation
-If you do not wan to use docker, you need the following packages:
+If you do not want to use docker, you need the following packages:
 
 - [Dolfin 2018.1.0](https://bitbucket.org/fenics-project/dolfin/src/2018.1.0.post2/) 
 - Femorph, branch [dokken/restructuring](https://bitbucket.org/Epoxid/femorph/src/c7317791c8f00d70fe16d593344cb164a53cad9b/?at=dokken%2Frestructuring), which is pip installable
