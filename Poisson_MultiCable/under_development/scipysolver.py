@@ -1,11 +1,14 @@
 from IPython import embed
 import numpy
+from pdb import set_trace
+import sympy
 from scipy.optimize import minimize, NonlinearConstraint
 
 
 class MultiCableOptimization():
     
-    def __init__(self, num_cables, cable_scales):      
+    def __init__(self, num_cables, cable_scales):
+        self.opt_it = 0
         self.g_scale = 1 # Scaling of coefficient for gradient constraint
         self.outer_radius = 1.2 # Radius of background cable
         self.inner_radius = 0.3 # Radius for each inner cable
@@ -24,7 +27,7 @@ class MultiCableOptimization():
         return self.replace_sympy_g(x)
 
 
-    def eval_jac_g(self, cable_positions, flag):
+    def eval_jac_g(self, cable_positions, flag=False):
         """ The constraint Jacobian:
         flag = True  means 'tell me the sparsity pattern';
         flag = False means 'give me the Jacobian'.
@@ -41,7 +44,7 @@ class MultiCableOptimization():
             cols = list(range(nvar)) * ncon
             return (numpy.array(rows), numpy.array(cols))
         else:
-            return self.replace_sympy_jac_g(cable_positions)
+            return numpy.array(self.replace_sympy_jac_g(cable_positions))
 
     
     def sympy_g(self, num_cables):
@@ -53,7 +56,7 @@ class MultiCableOptimization():
         y = list(sympy.symbols("y0:%d" % num_cables))
         g,z= [],[]
         for i in range(num_cables):
-            g.append(x[i]**2 + y[i]**2 - self.max_radius[i]**2)
+            g.append(-(x[i]**2 + y[i]**2 - self.max_radius[i]**2))
         for i in range(num_cables):
             z.append(x[i])
             z.append(y[i])
@@ -63,7 +66,7 @@ class MultiCableOptimization():
                 int_radius = self.inner_radius[i] + self.inner_radius[j]\
                              + self.distance_from_internal
                 # FIXME: Max_int_radius should change with each cable radius
-                g.append(int_radius**2 - (xi - xj)**2 - (yi - yj)**2)
+                g.append(-(int_radius**2 - (xi - xj)**2 - (yi - yj)**2))
         self.g = sympy.Matrix(g)
         self.z = sympy.Matrix(z)
     
@@ -95,19 +98,26 @@ class MultiCableOptimization():
         up_var[0], low_var[0] = 0, 0
         inf_con = numpy.inf*numpy.ones(ncon, dtype=float)
         zero_con = numpy.zeros(ncon, dtype=float)
+        # For "trust-constr"
         self.non_lin_constraint = NonlinearConstraint(self.eval_g,
                                                       low_var,
                                                       up_var,
                                                       jac=self.eval_jac_g,
                                                       keep_feasible=True)
 
+        
     def solve(self, cable_positions, eval_J, eval_dJ, callback,
               options={}):
-        result = minimize(eval_J, thetas,
+        import pdb; pdb.set_trace()
+        result = minimize(eval_J, cable_positions,
+                          method="SLSQP",#"trust-constr",
                           jac=eval_dJ,
-                          method = 'Newton-CG',
                           callback=callback,
-                          options={"maxiter":1,"xtol":1e-2, "disp":True})
+                          constraints = self.non_lin_constraint,
+                          #hess="cs",
+                          options={"maxiter":5,
+                                   #"xtol":1e-2,
+                                   "disp":True})
         
         return result
 
