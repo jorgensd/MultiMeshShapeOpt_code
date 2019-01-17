@@ -34,6 +34,12 @@ At an later instance, the container can be started with the following command
 docker container start mmshapeopt
 ```
 
+To run the attached docker notebook, run:
+`
+docker run --name mmshapeoptnb -w /home/fenics -v $(pwd):/home/fenics/shared -d -p 127.0.0.1:8888:8888 mmshapeopt 'jupyter-notebook --ip=0.0.0.0'
+`
+
+
 ### Manual installation
 If you do not wan to use docker, you need the following packages:
 
@@ -43,4 +49,3 @@ If you do not wan to use docker, you need the following packages:
 - scipy (>=1.1.0)
 - gmsh (v. 3.0.6)
 - meshio, pygmsh
-
