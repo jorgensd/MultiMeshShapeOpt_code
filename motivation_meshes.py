@@ -4,6 +4,11 @@ import meshio
 outer_marker = 2
 inner_marker = 1
 ball_height = 1.25
+
+import os
+mesh_folder = "notebook_meshes/"
+os.system("mkdir -p {0:s}".format(mesh_folder))
+
 def single_mesh(res=0.025):
     geometry = Geometry()
     circle = geometry.add_circle((0.5,ball_height,0),0.15, lcar=res)
@@ -20,10 +25,10 @@ def single_mesh(res=0.025):
                                             verbose=False)
 
     # Save mesh and mesh-function to file
-    meshio.write("singlemesh.xdmf", meshio.Mesh(
+    meshio.write(mesh_folder+"singlemesh.xdmf", meshio.Mesh(
         points=points, cells={"triangle": cells["triangle"]}))
     
-    meshio.write("mf_singlemesh.xdmf", meshio.Mesh(
+    meshio.write(mesh_folder+"mf_singlemesh.xdmf", meshio.Mesh(
         points=points, cells={"line": cells["line"]},
         cell_data={"line": {"name_to_read":
                             cell_data["line"]["gmsh:physical"]}}))
@@ -41,10 +46,10 @@ def background_mesh(res=0.025):
                                             verbose=False)
 
     # Save mesh and mesh-function to file
-    meshio.write("background_mesh.xdmf", meshio.Mesh(
+    meshio.write(mesh_folder+"background_mesh.xdmf", meshio.Mesh(
         points=points, cells={"triangle": cells["triangle"]}))
     
-    meshio.write("mf_background.xdmf", meshio.Mesh(
+    meshio.write(mesh_folder+"mf_background.xdmf", meshio.Mesh(
         points=points, cells={"line": cells["line"]},
         cell_data={"line": {"name_to_read":
                             cell_data["line"]["gmsh:physical"]}}))
@@ -66,10 +71,10 @@ def front_mesh(res=0.025):
                                             verbose=False)
 
     # Save mesh and mesh-function to file
-    meshio.write("front_mesh.xdmf", meshio.Mesh(
+    meshio.write(mesh_folder+"front_mesh.xdmf", meshio.Mesh(
         points=points, cells={"triangle": cells["triangle"]}))
     
-    meshio.write("mf_front.xdmf", meshio.Mesh(
+    meshio.write(mesh_folder+"mf_front.xdmf", meshio.Mesh(
         points=points, cells={"line": cells["line"]},
         cell_data={"line": {"name_to_read":
                             cell_data["line"]["gmsh:physical"]}}))
