@@ -42,7 +42,7 @@ docker run --name mmshapeoptnb -w /home/fenics/shared -v $(pwd):/home/fenics/sha
 ```
 To open the notebook, open a web-browser and go to [127.0.0.1:8888](127.0.0.1:8888). To get the access key, type:
 ```
-docker logs mmshapeopt
+docker logs mmshapeoptnb
 ```
 To stop and start the container use the following arguments.
 ```
