@@ -49,6 +49,7 @@ To stop and start the container use the following arguments.
 docker container stop mmshapeoptnb
 docker container start -i mmshapeoptnb
 ```
+To use the interactive notebook, go to the `Kernel->Restart & Run All`.
 
 
 
