@@ -34,13 +34,22 @@ At an later instance, the container can be started with the following command
 docker container start mmshapeopt
 ```
 
-### Docker notebooks: A motivational example for MultiMesh
-To run the attached docker notebook, run:
+## Docker notebooks: A motivational example for MultiMesh
+First build the docker image mmshapeopt as described above.
+Then to run the attached docker notebook, run:
 ```
 docker run --name mmshapeoptnb -w /home/fenics/shared -v $(pwd):/home/fenics/shared -d -p 127.0.0.1:8888:8888 mmshapeopt 'jupyter-notebook --ip=0.0.0.0'
+```
+To open the notebook, open a web-browser and go to [127.0.0.1:8888](127.0.0.1:8888). To get the access key, type:
+```
+docker logs mmshapeopt
+```
+To stop and start the container use the following arguments.
+```
 docker container stop mmshapeoptnb
 docker container start -i mmshapeoptnb
 ```
+
 
 
 ### Manual installation
